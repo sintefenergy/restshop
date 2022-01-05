@@ -28,11 +28,11 @@ setup(
       'numpy',
       'fastapi',
       'uvicorn',
-      'python-jose',
-      'passlib',
-      'python-multipart',
+      'pydantic',
+      'starlette',
       'pytest',
       'pytest-order',
-      'requests'
+      'requests',
+      'sintef-pyshop'
     ]
 )

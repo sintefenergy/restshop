@@ -3,11 +3,8 @@ import json
 from datetime import datetime, timedelta
 from typing import Optional, List, Union, Any, Dict
 
-from fastapi import Depends, FastAPI, HTTPException, status, Body, Query, Response
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Depends, FastAPI, HTTPException, Body, Query, Response, Header
 
-from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 
 # from fastapi.openapi.models import SchemaBase
@@ -15,16 +12,13 @@ from starlette.responses import RedirectResponse
 
 import restshop
 from restshop.sessions import SessionManager
-from restshop.schemas import *
-
-from enum import Enum
-
-from fastapi import Path, Header
+from restshop.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
+        Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, Model, ObjectType, ObjectAttribute, \
+        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, \
+        Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
 
 import pandas as pd
 import numpy as np
-
-import asyncio
 
 import requests
 
@@ -34,12 +28,6 @@ def shop_session(user_name: str, session_id: str):
 api_description = """ """
 
 if __name__ == 'main':
-
-    # to get a string like this run:
-    # openssl rand -hex 32
-    SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-    ALGORITHM = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
     app = FastAPI(
         title="REST SHOP",
@@ -81,16 +69,6 @@ if __name__ == 'main':
         ]
     )
 
-    fake_users_db = {
-        "johndoe": {
-            "username": "johndoe",
-            "full_name": "John Doe",
-            "email": "johndoe@example.com",
-            "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
-            "disabled": False,
-        }
-    }
-
     def http_raise_internal(msg: str, e: Exception):
         raise HTTPException(500, f'{msg} -- Internal Exception: {e}')
 
@@ -107,91 +85,11 @@ if __name__ == 'main':
     SessionManager.add_user_session('test_user', None)
     # SessionManager.add_shop_session(test_user, 'default_session') # Create default session at startup of rest API
 
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-    def verify_password(plain_password, hashed_password):
-        return pwd_context.verify(plain_password, hashed_password)
-
-    def get_password_hash(password):
-        return pwd_context.hash(password)
-
-    def get_user(db, username: str):
-        if username in db:
-            user_dict = db[username]
-            return UserInDB(**user_dict)
-
-
-    def authenticate_user(fake_db, username: str, password: str):
-        user = get_user(fake_db, username)
-        if not user:
-            return False
-        if not verify_password(password, user.hashed_password):
-            return False
-        return user
-
-
-    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(minutes=15)
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        return encoded_jwt
-
-
-    async def get_current_user(token: str = Depends(oauth2_scheme)):
-        credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            username: str = payload.get("sub")
-            if username is None:
-                raise credentials_exception
-            token_data = TokenData(username=username)
-        except JWTError:
-            raise credentials_exception
-        user = get_user(fake_users_db, username=token_data.username)
-        if user is None:
-            raise credentials_exception
-        return user
-
-
-    async def get_current_active_user(current_user: User = Depends(get_current_user)):
-        if current_user.disabled:
-            raise HTTPException(status_code=400, detail="Inactive user")
-        return current_user
-
 
     # so that the first thing the client sees is /docs
     @app.get("/", include_in_schema=False)
     async def root_documentation():
         return RedirectResponse("/docs")
-
-    @app.post("/token", response_model=Token, tags=['Authentication'])
-    async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-
-        user = authenticate_user(fake_users_db, form_data.username, form_data.password)
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": user.username}, expires_delta=access_token_expires
-        )
-
-        return {"access_token": access_token, "token_type": "bearer"}
 
     # ------- session
 
@@ -633,18 +531,18 @@ Example:
     # ------ internal methods
 
 
-    @app.get("/internal", response_model=ApiCommands, dependencies=[Depends(check_that_time_resolution_is_set)], tags=['__internals'])
+    @app.get("/internal", response_model=ApiCommands, tags=['__internals'])
     async def get_available_internal_methods(session_id = Depends(get_session_id)):
         command_types = shop_session(test_user, session_id).shop_api.__dir__()
         command_types = list(filter(lambda x: x[0] != '_', command_types))
         return ApiCommands(command_types = command_types)
 
-    @app.get("/internal/{command}", dependencies=[Depends(check_that_time_resolution_is_set)], response_model=ApiCommandDescription, tags=['__internals'])
+    @app.get("/internal/{command}", response_model=ApiCommandDescription, tags=['__internals'])
     async def get_internal_method_description(command: ApiCommandEnum, session_id = Depends(get_session_id)):
         doc = getattr(shop_session(test_user, session_id).shop_api, command).__doc__
         return ApiCommandDescription(description = str(doc))
 
-    @app.post("/internal/{command}", dependencies=[Depends(check_that_time_resolution_is_set)], response_model=CommandStatus, tags=['__internals'])
+    @app.post("/internal/{command}", response_model=CommandStatus, tags=['__internals'])
     async def call_internal_method(command: ApiCommandEnum, cmdargs: ApiCommandArgs = ApiCommandArgs(args=(), kwargs={}), session_id = Depends(get_session_id)):
         try:
             return Response(content=getattr(shop_session(test_user, session_id).shop_api, command)(*cmdargs.args, **cmdargs.kwargs), media_type="text/plain")

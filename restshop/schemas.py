@@ -1,5 +1,3 @@
-import collections
-
 from typing import List, Dict, Optional, Union, Any, OrderedDict
 from enum import Enum
 from pydantic import BaseModel, Field
