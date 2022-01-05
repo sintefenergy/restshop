@@ -1,0 +1,21 @@
+#Ignore these directories
+SDK/
+doc/
+dockerfiles/
+log_consumer/
+
+#Ignoring specific file
+basic.py
+test_main.py
+socket_test.py
+
+#Ignoring svn folder
+.git
+.gitignore
+.cache
+
+#Ignoring all VS solution files
+*.md
+*.zip
+*.gz
+*.tar
