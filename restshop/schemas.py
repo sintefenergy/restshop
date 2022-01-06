@@ -235,7 +235,7 @@ def new_attribute_type_name_from_old(name: str) -> ObjectAttributeTypeEnum:
     return name
     
 
-AttributeValue = Union[None, float, str, List[float], Curve, OrderedDict[float, Curve], OrderedDict[datetime, Curve], TimeSeries]
+AttributeValue = Union[None, float, str, List[float], List[str], Curve, OrderedDict[float, Curve], OrderedDict[datetime, Curve], TimeSeries]
 
 class ObjectAttribute(BaseModel):
     attribute_name: str
