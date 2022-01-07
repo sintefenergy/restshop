@@ -14,7 +14,7 @@ import restshop
 from restshop.sessions import SessionManager
 from restshop.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
         Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, Model, ObjectType, ObjectAttribute, \
-        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, \
+        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, ObjectID, \
         Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
 
 import pandas as pd
@@ -421,8 +421,8 @@ async def get_connections(session_id = Depends(get_session_id)):
                     ):
                         to_object = serialize_model_object_instance(r)
                         connections += [Connection(
-                            from_object=serialize_model_object_instance(from_object),
-                            to_object=to_object,
+                            from_object=ObjectID(object_type=object_type, object_name=object_name),
+                            to_object=ObjectID(object_type=r.get_type(), object_name=r.get_name()),
                             relation_type=relation_type,
                             relation_direction=relation_direction,
                         )]
