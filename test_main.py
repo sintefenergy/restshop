@@ -17,8 +17,9 @@ def test_post_session():
     response = client.post("/session")
     assert response.status_code == 200
     assert response.json() == {
-        'session_id': 2,
-        'session_name': 'unnamed'
+        'session_id': 1,
+        'session_name': 'unnamed',
+        'log_file': 'pyshop_log.py'
     }
 
 @pytest.mark.order(2)
@@ -28,12 +29,9 @@ def test_get_sessions():
     assert response.json() == [
         {
             'session_id': 1,
-            'session_name': 'default_session'
-        },
-        {
-            'session_id': 2,
             'session_name': 'unnamed',
-        }
+            'log_file': 'pyshop_log.py'
+        },
     ]
 
 @pytest.mark.order(3)
@@ -42,7 +40,8 @@ def test_get_session_that_exists():
     assert response.status_code == 200
     assert response.json() == {
         'session_id': 1,
-        'session_name': 'default_session'
+        'session_name': 'unnamed',
+        'log_file': 'pyshop_log.py'
     }
 
 @pytest.mark.order(4)
@@ -204,11 +203,11 @@ expected_b = ObjectInstance(
             ],
             'values': [
                 [
-                50,
-                50,
-                50,
-                50,
-                50,
+                42,
+                42,
+                42,
+                42,
+                42,
                 50,
                 50,
                 50,
@@ -238,6 +237,8 @@ expected_b = ObjectInstance(
 def test_put_model_object_instance_with_body():
 
     a = ObjectInstance(
+        # object_name='test_res',
+        # object_type='reservoir',
         attributes={
             'vol_head': Curve(**{
                 'y_values': [42.0, 43.0, 45.0],
@@ -250,16 +251,13 @@ def test_put_model_object_instance_with_body():
                 })
             },
             'inflow': TimeSeries(**{
-                'timestamps': ['2020-01-01T00:00:00','2020-01-01T05:00:00'],
+                'timestamps': ['2021-05-02T00:00:00Z','2021-05-02T05:00:00Z'],
                 'values': [[42.0, 50.0]]
             })
         }
     )
 
-    response = client.put(
-        '/model/reservoir?object_name=test_res',
-        data=a.json()
-    )
+    response = client.put('/model/reservoir', params={'object_name': 'test_res'}, headers={"accept": "application/json","Content-Type": "application/json", "session-id": "1"}, data=a.json())
     assert response.status_code == 200
     b = ObjectInstance(**response.json()) # Thanks to pydantic this raises exceptions if response is wrong
     for attr, expected_value in expected_b.attributes.items():
@@ -311,7 +309,7 @@ def test_put_connections():
 
 @pytest.mark.order(20)
 def test_get_connections():
-    response = client.get('/connections')
+    response = client.get('/connections', headers={"accept": "application/json","Content-Type": "application/json", "session-id": "1"})
     assert response.status_code == 200
     
     # TODO: connection output is a mess ... SHOP's fault?
