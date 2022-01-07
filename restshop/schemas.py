@@ -255,8 +255,8 @@ class ObjectAttribute(BaseModel):
 
 
 class ObjectInstance(BaseModel):
-    object_name: str = Field('example_res', description='name of instance')
-    object_type: str = Field('reservoir', description='type of instance')
+    # object_name: str = Field('example_res', description='name of instance')
+    # object_type: str = Field('reservoir', description='type of instance')
     attributes: Dict[str, AttributeValue] = Field({}, description='attributes that can be set on the given object_type')
 
 class ObjectType(BaseModel):
@@ -377,8 +377,8 @@ def serialize_model_object_instance(o: Any) -> ObjectInstance:
     attribute_names = list(o._attr_names)
 
     return ObjectInstance(
-        object_type = o.get_type(),
-        object_name = o.get_name(),
+        # object_type = o.get_type(),
+        # object_name = o.get_name(),
         attributes = {
             name: serialize_model_object_attribute((getattr(o, name))) for name in attribute_names
         }
