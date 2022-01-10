@@ -2,34 +2,44 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-import requests
+# import requests
+from fastapi.testclient import TestClient
+from ..main import app
 
-class Client:
+client = TestClient(app)
 
-    def __init__(self, endpoint: str):
-        self.endpoint = endpoint
-        self.req = requests
+# class Client:
+
+#     def __init__(self, endpoint: str):
+#         self.endpoint = endpoint
+#         self.req = requests
     
-    def post(self, url, **kwargs):
-        return self.req.post(f'{self.endpoint}{url}', **kwargs)
+#     def post(self, url, **kwargs):
+#         return self.req.post(f'{self.endpoint}{url}', **kwargs)
 
-    def put(self, url, **kwargs):
-        return self.req.put(f'{self.endpoint}{url}', **kwargs)
+#     def put(self, url, **kwargs):
+#         return self.req.put(f'{self.endpoint}{url}', **kwargs)
 
-    def get(self, url, **kwargs):
-        return self.req.get(f'{self.endpoint}{url}', **kwargs)
+#     def get(self, url, **kwargs):
+#         return self.req.get(f'{self.endpoint}{url}', **kwargs)
 
-client = Client('http://localhost:8000')
+# client = Client('http://127.0.0.1:8000')
 
 # ==================================
 
 # Set time resolution
 
-start_time = '2018-02-27T00:00:00'
-end_time = '2018-02-28T00:00:00'
+resp = client.post(
+    '/session',
+)
+assert resp.status_code == 200
 
-resp = client.put(
+start_time = '2018-02-27T00:00:00Z'
+end_time = '2018-02-28T00:00:00Z'
+
+resp = client.post(
     '/time_resolution',
+    headers={"Content-Type": "application/json", "session-id": "1"},
     json={
         'start_time': start_time,
         'end_time': end_time,

@@ -10,12 +10,14 @@ from pydantic import BaseModel, Field
 # from fastapi.openapi.models import SchemaBase
 from starlette.responses import RedirectResponse
 
-import restshop
-from restshop.sessions import SessionManager
-from restshop.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
+import core
+from core.sessions import SessionManager
+from core.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
         Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, Model, ObjectType, ObjectAttribute, \
         ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, ObjectID, \
         Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
+
+from pyshop.shopcore.shop_rest import NumpyArrayEncoder
 
 import pandas as pd
 import numpy as np
@@ -31,7 +33,7 @@ api_description = """ """
 app = FastAPI(
     title="REST SHOP",
     description=api_description,
-    version=restshop.__version__,
+    version=core.__version__,
     openapi_tags=[
         {
             'name': 'Authentication',
@@ -551,7 +553,9 @@ async def get_internal_method_description(command: ApiCommandEnum, session_id = 
 async def call_internal_method(command: ApiCommandEnum, cmdargs: ApiCommandArgs = ApiCommandArgs(args=(), kwargs={}), session_id = Depends(get_session_id)):
     try:
         res = getattr(shop_session(test_user, session_id).shop_api, command)(*cmdargs.args, **cmdargs.kwargs)
-        return Response(content=json.dumps(res), media_type="json/application")
+        if command == 'GetTxySeriesY':
+            res = np.transpose(res)
+        return Response(content=json.dumps(res, cls=NumpyArrayEncoder), media_type="json/application")
     except:
         return CommandStatus(message = 'Invalid function or arguments', status=False)
 

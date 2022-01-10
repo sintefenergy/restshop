@@ -2,13 +2,13 @@ import pytest
 
 from fastapi.testclient import TestClient
 
-from restshop.schemas import *
-from main import app
+from core.schemas import *
+import main
 
 import json
 
 
-client = TestClient(app)
+client = TestClient(main.app)
 
 # SESSION
 
