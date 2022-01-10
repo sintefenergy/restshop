@@ -4,10 +4,9 @@ import pandas as pd
 # import requests
 import sys, os
 sys.path.append(os.getcwd())
-from main import app
+from main import app # Used by uvicorn.Config
 
 import uvicorn
-from multiprocessing import Process
 import contextlib
 import threading
 import time

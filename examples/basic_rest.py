@@ -4,28 +4,11 @@ import numpy as np
 
 # import requests
 from fastapi.testclient import TestClient
-from ..main import app
+import sys, os
+sys.path.append(os.getcwd())
+from main import app
 
 client = TestClient(app)
-
-# class Client:
-
-#     def __init__(self, endpoint: str):
-#         self.endpoint = endpoint
-#         self.req = requests
-    
-#     def post(self, url, **kwargs):
-#         return self.req.post(f'{self.endpoint}{url}', **kwargs)
-
-#     def put(self, url, **kwargs):
-#         return self.req.put(f'{self.endpoint}{url}', **kwargs)
-
-#     def get(self, url, **kwargs):
-#         return self.req.get(f'{self.endpoint}{url}', **kwargs)
-
-# client = Client('http://127.0.0.1:8000')
-
-# ==================================
 
 # Set time resolution
 
@@ -37,7 +20,7 @@ assert resp.status_code == 200
 start_time = '2018-02-27T00:00:00Z'
 end_time = '2018-02-28T00:00:00Z'
 
-resp = client.post(
+resp = client.put(
     '/time_resolution',
     headers={"Content-Type": "application/json", "session-id": "1"},
     json={
