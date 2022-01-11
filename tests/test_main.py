@@ -7,41 +7,43 @@ from core.schemas import *
 
 # SESSION
 class TestMain:
-
+    
     # @pytest.mark.order(1)
-    def test_post_session(self, client):
+    def test_post_session(self, client, session_id_manager):
         response = client.post("/session")
         assert response.status_code == 200
-        assert response.json() == {
-            'session_id': 1,
-            'session_name': 'unnamed',
-            'log_file': 'pyshop_log.py'
-        }
+        response_json = response.json()
+        assert isinstance(response_json['session_id'], int)
+        session_id_manager.session_id = response_json['session_id']
+        assert response_json['session_name'] == 'unnamed'
+        assert response_json['log_file'] == 'pyshop_log.py'
+        
+    def test_post_session2(self, client, session_id_manager):
+        response = client.post("/session")
+        assert response.status_code == 200
+        response_json = response.json()
+        assert isinstance(response_json['session_id'], int)
+        session_id_manager.session_id = response_json['session_id']
+        assert response_json['session_name'] == 'unnamed'
+        assert response_json['log_file'] == 'pyshop_log.py'
 
     # @pytest.mark.order(2)
-    def test_get_sessions(self, client):
+    def test_get_sessions(self, client, session_id_manager):
         response = client.get("/sessions")
         assert response.status_code == 200
-        assert response.json() == [
-            {
-                'session_id': 1,
-                'session_name': 'unnamed',
-                'log_file': 'pyshop_log.py'
-            },
-        ]
 
     # @pytest.mark.order(3)
-    def test_get_session_that_exists(self, client):
-        response = client.get("/session?session_id=1")
+    def test_get_session_that_exists(self, client, session_id_manager):
+        response = client.get("/session", params={'session_id': str(session_id_manager.session_id)})
         assert response.status_code == 200
         assert response.json() == {
-            'session_id': 1,
+            'session_id': session_id_manager.session_id,
             'session_name': 'unnamed',
             'log_file': 'pyshop_log.py'
         }
 
     # @pytest.mark.order(4)
-    def test_get_session_that_doesnt_exist(self, client):
+    def test_get_session_that_doesnt_exist(self, client, session_id_manager):
         response = client.get("/session?session_id=42")
         assert response.status_code == 404
         assert response.json() == {
@@ -51,17 +53,18 @@ class TestMain:
     # TIME RESOLUTION
 
     # @pytest.mark.order(5)
-    def test_get_time_resolution_before_set(self, client):
-        response = client.get("/time_resolution")
+    def test_get_time_resolution_before_set(self, client, session_id_manager):
+        response = client.get("/time_resolution", headers={'session-id': str(session_id_manager.session_id)})
         assert response.status_code == 400
         assert response.json() == {
             'detail': 'First you must set the time_resolution of the session'
         }
 
     # @pytest.mark.order(6)
-    def test_put_time_resolution_missing_body(self, client):
+    def test_put_time_resolution_missing_body(self, client, session_id_manager):
         response = client.put(
             "/time_resolution",
+            headers={'session-id': str(session_id_manager.session_id)},
             data={
 
             }
@@ -77,9 +80,10 @@ class TestMain:
 
 
     # @pytest.mark.order(7)
-    def test_put_time_resolution_bad_time_order(self, client):
+    def test_put_time_resolution_bad_time_order(self, client, session_id_manager):
         response = client.put(
             "/time_resolution",
+            headers={'session-id': str(session_id_manager.session_id)},
             json={
                 "start_time": "2021-05-03T00:00:00.00Z",
                 "end_time": "2021-05-02T00:00:00.00Z",
@@ -92,9 +96,10 @@ class TestMain:
 
 
     # @pytest.mark.order(8)
-    def test_put_time_resolution(self, client):
+    def test_put_time_resolution(self, client, session_id_manager):
         response = client.put(
             "/time_resolution",
+            headers={'session-id': str(session_id_manager.session_id)},
             json={
                 "start_time": "2021-05-02T00:00:00.00Z",
                 "end_time": "2021-05-03T00:00:00.00Z",
@@ -107,7 +112,7 @@ class TestMain:
 
 
     # @pytest.mark.order(9)
-    def test_put_time_resolution_invalid_session(self, client):
+    def test_put_time_resolution_invalid_session(self, client, session_id_manager):
         response = client.put(
             "/time_resolution",
             headers={'session-id': '42'},
@@ -125,31 +130,41 @@ class TestMain:
     # MODEL
 
     # @pytest.mark.order(10)
-    def test_get_model(self, client):
-        response = client.get("/model")
+    def test_get_model(self, client, session_id_manager):
+        response = client.get(
+            "/model",
+            headers={'session-id': str(session_id_manager.session_id)}
+        )
         assert response.status_code == 200
         assert 'object_types' in response.json()
         assert 'reservoir' in response.json()['object_types']
         assert 'plant' in response.json()['object_types']
 
     # @pytest.mark.order(11)
-    def test_get_model_object_type_info(self, client):
-        response = client.get("/model/plant/information")
+    def test_get_model_object_type_info(self, client, session_id_manager):
+        response = client.get(
+            "/model/plant/information",
+            headers={'session-id': str(session_id_manager.session_id)}
+        )
         assert response.status_code == 200
         ot = ObjectType(**response.json())  # Thanks to pydantic this raises exceptions if response is wrong
 
     # @pytest.mark.order(12)
-    def test_get_model_object_instance_nonexistent(self, client):
-        response = client.get('/model/reservoir?object_name=test_res')
+    def test_get_model_object_instance_nonexistent(self, client, session_id_manager):
+        response = client.get(
+            '/model/reservoir?object_name=test_res',
+            headers={'session-id': str(session_id_manager.session_id)}
+        )
         assert response.status_code == 400
         assert response.json() == {
             'detail': 'object_name {test_res} is not an instance of object_type {reservoir}.'
         }
 
     # @pytest.mark.order(13)
-    def test_put_model_object_instance_no_body(self, client):
+    def test_put_model_object_instance_no_body(self, client, session_id_manager):
         response = client.put(
             '/model/reservoir?object_name=test_res',
+            headers={"accept": "application/json","Content-Type": "application/json",'session-id': str(session_id_manager.session_id)}
         )
         assert response.status_code == 200
         o = ObjectInstance(**response.json()) # Thanks to pydantic this raises exceptions if response is wrong
@@ -230,7 +245,7 @@ class TestMain:
     )
 
     # @pytest.mark.order(14)
-    def test_put_model_object_instance_with_body(self, client):
+    def test_put_model_object_instance_with_body(self, client, session_id_manager):
 
         a = ObjectInstance(
             # object_name='test_res',
@@ -253,46 +268,60 @@ class TestMain:
             }
         )
 
-        response = client.put('/model/reservoir', params={'object_name': 'test_res'}, headers={"accept": "application/json","Content-Type": "application/json", "session-id": "1"}, data=a.json())
+        response = client.put(
+            '/model/reservoir',
+            params={'object_name': 'test_res'},
+            headers={"accept": "application/json","Content-Type": "application/json", "session-id": str(session_id_manager.session_id)},
+            data=a.json()
+        )
         assert response.status_code == 200
         b = ObjectInstance(**response.json()) # Thanks to pydantic this raises exceptions if response is wrong
         for attr, expected_value in self.expected_b.attributes.items():
             assert b.attributes[attr] == expected_value
 
     # @pytest.mark.order(15)
-    def test_get_model_object_instance(self, client):
-        response = client.get('/model/reservoir?object_name=test_res')
+    def test_get_model_object_instance(self, client, session_id_manager):
+        response = client.get(
+            '/model/reservoir?object_name=test_res',
+            headers={"session-id": str(session_id_manager.session_id)}
+        )
         assert response.status_code == 200
         b = ObjectInstance(**response.json()) # Thanks to pydantic this raises exceptions if response is wrong
         for attr, expected_value in self.expected_b.attributes.items():
             assert b.attributes[attr] == expected_value
 
     # @pytest.mark.order(16)
-    def test_get_connections_nonexistent(self, client):
-        response = client.get('/connections')
+    def test_get_connections_nonexistent(self, client, session_id_manager):
+        response = client.get(
+            '/connections',
+            headers={"session-id": str(session_id_manager.session_id)}
+        )
         assert response.status_code == 200
         assert response.json() == []
 
     # @pytest.mark.order(17)
-    def test_put_model_object_instance_reservoir_r1(self, client):
+    def test_put_model_object_instance_reservoir_r1(self, client, session_id_manager):
         response = client.put(
             '/model/reservoir?object_name=r1',
+            headers={"session-id": str(session_id_manager.session_id)}
         )
         assert response.status_code == 200
         o = ObjectInstance(**response.json()) # Thanks to pydantic this raises exceptions if response is wrong
 
     # @pytest.mark.order(18)
-    def test_put_model_object_instance_plant_p1(self, client):
+    def test_put_model_object_instance_plant_p1(self, client, session_id_manager):
         response = client.put(
             '/model/plant?object_name=p1',
+            headers={"session-id": str(session_id_manager.session_id)}
         )
         assert response.status_code == 200
         o = ObjectInstance(**response.json()) # Thanks to pydantic this raises exceptions if response is wrong
 
     # @pytest.mark.order(19)
-    def test_put_connections(self, client):
+    def test_put_connections(self, client, session_id_manager):
         response = client.put(
             '/connections',
+            headers={"session-id": str(session_id_manager.session_id)},
             json=[
                 {
                     'from_object': {'object_type': 'reservoir', 'object_name': 'r1'},
@@ -304,8 +333,11 @@ class TestMain:
         assert response.json() == None
 
     # @pytest.mark.order(20)
-    def test_get_connections(self, client):
-        response = client.get('/connections', headers={"accept": "application/json","Content-Type": "application/json", "session-id": "1"})
+    def test_get_connections(self, client, session_id_manager):
+        response = client.get(
+            '/connections',
+            headers={"accept": "application/json","Content-Type": "application/json", "session-id": str(session_id_manager.session_id)}
+        )
         assert response.status_code == 200
         
         # TODO: connection output is a mess ... SHOP's fault?
