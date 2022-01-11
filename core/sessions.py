@@ -58,24 +58,24 @@ class SessionManager:
     def log_callback(msg, id):
 
         endpoint = SessionManager.logging_endpoint
-        endpoint = endpoint if endpoint else 'http://host.docker.internal:5000/log/message'
+        # endpoint = endpoint if endpoint else 'http://host.docker.internal:5000/log/message'
+        if endpoint:
+            try:
+                resp = requests.post(
+                    endpoint,
+                    json={
+                        'level': 'INFO',
+                        'message': msg,
+                        'id': id
+                    }
+                )
+                if resp.status_code != 200:
+                    print(f'logging endpoint is complaining')
+                    print(f'response: {resp}')
 
-        try:
-            resp = requests.post(
-                endpoint,
-                json={
-                    'level': 'INFO',
-                    'message': msg,
-                    'id': id
-                }
-            )
-            if resp.status_code != 200:
-                print(f'logging endpoint is complaining')
-                print(f'response: {resp}')
-
-        except Exception as e:
-            print(f'failed to forward log message to endpoint: {endpoint}')
-            print(f' --- exception: {e}')
+            except Exception as e:
+                print(f'failed to forward log message to endpoint: {endpoint}')
+                print(f' --- exception: {e}')
 
         return None
 
