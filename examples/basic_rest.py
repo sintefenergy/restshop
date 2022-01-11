@@ -378,7 +378,7 @@ resp = client.post(
     '/simulation/set_code',
     json={
         'options': ['incremental'],
-        'values': ['3']
+        'values': []
     }
 )
 
