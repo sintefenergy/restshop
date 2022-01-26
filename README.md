@@ -1,46 +1,58 @@
 # REST SHOP
 
-REST SHOP is built as a container service using docker. On windows you will need to install docker desktop, it is recommended that you use the wsl 2 backend. Installation instructions can be found here -> [docker-for-windows]("https://docs.docker.com/docker-for-windows/install/").
+REST SHOP is built on [FastAPI](https://fastapi.tiangolo.com/). Hosting of the server with uvicorn or docker is explained below, for other hosting options please visit the [FastAPI documentation](https://fastapi.tiangolo.com/deployment/).
 
-Building restshop is a two stage process, since the rest/python layer is made open, whilst the backend, the shop-core, is closed. The first step is to build the SHOP core image.
+> WARNING: REST SHOP does not implement secure communication and should never be exposed on the internet.
 
-## 1. Building SHOP
+## Start REST SHOP server with uvicorn on Windows
 
-> NOTE: If you already have an image of the shop core locally, you can skip this stage. It is important that the local image is called shop.
+REST SHOP requires pyshop. Please visit the [pyshop GitHub repo](https://github.com/sintef-energy/pyshop) for installation guidelines.
 
-In order to build, you will need a local copy of the svn repository of shop. You need it checked out to a branch that supports the logging callback and pyshop in general.
-
-Navigate to the directory of the svn repository, and copy paste the file dockerfiles/shop/Dockerfile into the root of this repo.
-
-Now you may proceed to build the shop image (assuming you're standing in the root of the svn repo where you just placed the Dockerfile).
-
+Make sure [uvicorn](https://www.uvicorn.org/) is installed. Clone this repository and navigate to root with Command Prompt or PowerShell. Make sure all requirements are installed in Python with:
 ```
-docker build -t shop .
+pip install -r requirements.txt
 ```
 
-## 2. Build restshop
+To start the server, run the following commnad:
+```
+uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+## Run tests
+
+Make sure test requirements are installed:
+```
+pip install -r requirements-test.txt
+```
+
+Run all tests:
+```
+pytest
+```
+
+## Build dockerimage
 
 The restshop image is based on the shop image. Make sure you have built this first.
 
-Navigate to the root of this repository, and then
+Navigate to the root of this repository and run
 
 ```
 docker build -t restshop .
 ```
 
-## 3. Start restshop server
+## Start restshop server
 
 ```
 docker run --rm --name restshop -p 8000:8000 restshop
 ```
 
-## 4. Check the swagger documentation
+## Check the swagger documentation
 
 Open your favorite browser and visit
 
 http://localhost:8000/docs
 
-## 5. Run the basic example
+## Run the basic example
 
 This step requires you to have a python environment with the following packages
 
@@ -55,7 +67,7 @@ Then run the basic example at the root of this repo.
 python basic.py
 ```
 
-## 6. Debugging
+## Debugging
 
 Each SHOP session is running a separate instance of SHOP. By setting the "log_file" attribute when creating sessions, SHOP generates a python-log that enables recreating a workflow. The log file is saved inside the docker container, but can be copied to the current of your local file system using the following command:
 ```
@@ -67,7 +79,7 @@ Running docker container can be listed with the command:
 docker ps
 ```
 
-## 7. Export image
+## Export image
 
 Docker images can be compressed and exported for external users using the following command where the .tar.gz is a compressed image file and restshop is the name of the image to export:
 ```
