@@ -32,7 +32,7 @@ pytest
 
 ## Build dockerimage
 
-The restshop image is based on the shop image. Make sure you have built this first.
+The restshop image requires SHOP binary files. Put the required files specified in [readme.txt](https://github.com/sintef-energy/restshop/blob/main/binaries/readme.txt) in the binaries folder.
 
 Navigate to the root of this repository and run
 

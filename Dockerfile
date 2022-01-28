@@ -1,22 +1,21 @@
-FROM shop as base
+FROM shop/linux/python3.8/core:latest as core
 
-FROM python:3.8-rc-slim as app
+FROM python:3.8-slim as app
 
 WORKDIR /root/restshop
 COPY . .
 
-RUN pip3 install --upgrade pip &&\
-	pip install sintef-pyshop &&\
-	pip install . &&\
-	mkdir /root/binaries
+RUN apt-get update && apt-get install -y git
 
-# Copy in binaries from shop base image
-COPY --from=base /root/shop_binaries/*.so /root/binaries
+RUN pip install --upgrade pip &&\
+	pip install -r requirements.txt &&\
+	pip install git+https://github.com/sintef-energy/pyshop
 
-# license
-#COPY --from=base /root/shop_binaries/SHOP_license.dat /root/binaries
+# Copy in binaries
+# RUN cp /root/restshop/binaries/libcplex2010.so /usr/local/lib
+COPY --from=core /root/shop_binaries ./binaries/
 
-ENV ICC_COMMAND_PATH=/root/binaries
+ENV ICC_COMMAND_PATH=/root/restshop/binaries
 
 EXPOSE 8000
 
