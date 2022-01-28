@@ -11,3 +11,5 @@ socket_test.py
 *.tar
 log.txt
 pyshop_log.py
+binaries/*.so
+binaries/SHOP_license.dat

@@ -299,9 +299,6 @@ async def create_or_modify_existing_model_object_instance(
     except Exception as e:
         raise HTTPException(500, f'model does not implement object_type {{{object_type}}}') 
 
-
-    print("executed commands: ", session.get_executed_commands())
-
     for cmd in session.get_executed_commands():
         print("-----", cmd)
         if 'start sim' in cmd:
@@ -514,17 +511,6 @@ async def register_logging_endpoint(endpoint: LoggingEndpoint = Body(LoggingEndp
         http_raise_internal('failed to ping log endpoint', e)
 
     SessionManager.logging_endpoint = endpoint.endpoint
-
-    print(req.status_code)
-    print(req.json())
-
-    # if req.status_code != 200 :
-    #     print("Error:")
-    #     print(req.json())
-    # else:
-    #     print(req.json())
-
-
     return endpoint
 
 # ------ topology
