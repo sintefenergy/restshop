@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y git &&\
 	pip install --upgrade pip &&\
 	pip install -r requirements.txt &&\
 	pip install git+https://github.com/sintef-energy/pyshop &&\
-	cp /root/restshop/binaries/libcplex2010.so /usr/local/lib
+	cp /root/restshop/binaries/libcplex2010.so /lib
 
 ENV ICC_COMMAND_PATH=/root/restshop/binaries
 
