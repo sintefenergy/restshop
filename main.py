@@ -162,11 +162,20 @@ async def set_time_resolution(
     if (end <= start):
         raise HTTPException(400, 'end_time must be strictly greater than start_time')
 
-    shop_session(test_user, session_id).set_time_resolution(
-        starttime=start,
-        endtime=end,
-        timeunit=time_resolution.time_unit # TODO: also use time_resolution series
-    )
+    if (time_resolution.time_resolution):
+        tr: Series = time_resolution.time_resolution
+        shop_session(test_user, session_id).set_time_resolution(
+            starttime=start,
+            endtime=end,
+            timeunit=time_resolution.time_unit,
+            timeresolution=pd.Series(index=tr.index, data=tr.values)
+        )
+    else:
+        shop_session(test_user, session_id).set_time_resolution(
+            starttime=start,
+            endtime=end,
+            timeunit=time_resolution.time_unit
+        )
 
 
     # store the fact that time_resolution has been set

@@ -124,8 +124,8 @@ class ApiCommandDescription(BaseModel):
 class Series(BaseModel):
 
     name: Optional[str] = None
-    index: List[str]
-    values: List[str]
+    index: List[datetime]
+    values: List[float]
 
 def array_to_list_str(array: np.array) -> List[str]:
     
@@ -148,8 +148,8 @@ def Series_from_pd(series: pd.Series) -> Series:
 
     return Series(
         name = series.name,
-        index = array_to_list_str(series.index),
-        values = array_to_list_str(series.values)
+        index = list(series.index),
+        values = list(series.values)
     )
 
 class DataFrame(BaseModel):
