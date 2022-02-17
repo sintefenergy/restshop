@@ -197,7 +197,7 @@ async def get_time_resolution(session_id = Depends(get_session_id)):
     return TimeResolution(
         start_time=tr['starttime'],
         end_time=tr['endtime'],
-        timeunit=tr['timeunit'],
+        time_unit=tr['timeunit'],
         time_resolution=Series_from_pd(tr['timeresolution'])
     )
 
