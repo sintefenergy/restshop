@@ -13,9 +13,13 @@ Make sure [uvicorn](https://www.uvicorn.org/) is installed. Clone this repositor
 pip install -r requirements.txt
 ```
 
-To start the server, run the following commnad:
+To start the server, run the following commnad with uvicorn
 ```
 uvicorn main:app --host 127.0.0.1 --port 8000
+```
+or hypercorn
+```
+hypercorn main:app --bind 127.0.0.1:8000
 ```
 
 ## Run tests
@@ -85,3 +89,23 @@ Docker images can be compressed and exported for external users using the follow
 ```
 docker image save -o restshop.tar.gz restshop
 ```
+
+## Hosting with IIS
+
+The Rest API can be hosted on Windows IIS using AspNetCoreModule. Configuration is available in the [web.config](https://github.com/sintef-energy/restshop/blob/main/web.config) file. Follow these steps to host on IIS:
+1. Checkout this repo to the folder you want to host if from, for example the server wwwroot. This folder will hereby be referred to as the restshop folder.
+2. Install the version of python that corresponds to the SHOP version you are using.
+3. Setup python virtual environment and install dependencies. Navigate to the restshop folder in Command Prompt or PowerShell and run
+```
+python - venv venv
+```
+This will create a virtual environment in the venv subfolder of restshop. Activate by running
+```
+.\venv\Scripts\activate
+```
+and install packages by running
+```
+pip install -r requirements.txt
+```
+4. Setup IIS
+Create a new application pool with "No Managed Code" and might as well require "LocalSystem" identity to have the righte priveleges to execute python. Add a new website with physical path to the restshop folder and the newly create application pool. Browse to the newly created website and verify that the site is running. In case of problems, check the log files in the logs subfolder and the windows Event Viewer.

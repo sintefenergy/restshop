@@ -1,8 +1,9 @@
 pandas
 numpy
 fastapi
-uvicorn
+# uvicorn
+hypercorn
 pydantic
 starlette
-# sintef-pyshop==1.1.0
+sintef-pyshop==1.1.0
 requests

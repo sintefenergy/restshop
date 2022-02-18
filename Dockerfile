@@ -1,4 +1,4 @@
-FROM python:3.8-slim as app
+FROM python:3.10-slim as app
 
 WORKDIR /root/restshop
 COPY . .
@@ -13,4 +13,4 @@ ENV ICC_COMMAND_PATH=/root/restshop/binaries
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:8000"]
