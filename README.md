@@ -97,7 +97,7 @@ The Rest API can be hosted on Windows IIS using AspNetCoreModule. Configuration 
 2. Install the version of python that corresponds to the SHOP version you are using.
 3. Setup python virtual environment and install dependencies. Navigate to the restshop folder in Command Prompt or PowerShell and run
 ```
-python - venv venv
+python -m venv venv
 ```
 This will create a virtual environment in the venv subfolder of restshop. Activate by running
 ```
