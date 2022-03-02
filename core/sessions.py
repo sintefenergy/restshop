@@ -55,7 +55,7 @@ class SessionManager:
     logging_endpoint: str = ''
 
     @staticmethod
-    def log_callback(msg, id):
+    def log_callback(msg, level, id):
 
         endpoint = SessionManager.logging_endpoint
         # endpoint = endpoint if endpoint else 'http://host.docker.internal:5000/log/message'
@@ -64,7 +64,7 @@ class SessionManager:
                 resp = requests.post(
                     endpoint,
                     json={
-                        'level': 'INFO',
+                        'level': level,
                         'message': msg,
                         'id': id
                     }
