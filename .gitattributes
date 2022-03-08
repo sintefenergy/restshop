@@ -1,0 +1,8 @@
+/doc export-ignore
+/examples export-ignore
+/log_consumer export-ignore
+/tests export-ignore
+.dockerignore export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+Dockerfile export-ignore
