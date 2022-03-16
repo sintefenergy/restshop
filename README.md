@@ -109,3 +109,11 @@ pip install -r requirements.txt
 ```
 4. Setup IIS
 Create a new application pool with "No Managed Code" and might as well require "LocalSystem" identity to have the righte priveleges to execute python. Add a new website with physical path to the restshop folder and the newly create application pool. Browse to the newly created website and verify that the site is running. In case of problems, check the log files in the logs subfolder and the windows Event Viewer.
+
+## Poetry
+This repo uses [Poetry](https://python-poetry.org/) to manage external dependencies. [pyproject.toml](https://github.com/sintef-energy/restshop/blob/main/pyproject.toml) contains all dependencies and versions for development and deployment. Poetry resolves dependencies based on pyproject.toml and stores the resolved dependencies in [poetry.lock](https://github.com/sintef-energy/restshop/blob/main/poetry.lock). To update the corresponding requirements files, execute
+
+```
+poetry export -f requirements.txt --output requirements.txt --without-hashes
+poetry export -f requirements.txt --output requirements-test.txt --dev --without-hashes
+```
