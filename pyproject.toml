@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "restshop"
+version = "1.0.2"
+description = "SINTEF SHOP Rest API"
+authors = ["SINTEF Energy Research"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+sintef-pyshop = "^1.1.0"
+fastapi = "^0.75.0"
+pandas = "^1.4.1"
+numpy = "^1.22.3"
+hypercorn = "^0.13.2"
+pydantic = "^1.9.0"
+starlette = "^0.17.1"
+requests = "^2.27.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
