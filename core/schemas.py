@@ -272,20 +272,30 @@ class ObjectType(BaseModel):
 
 # Connection
 
-class ObjectID(BaseModel):
-    object_type: str
-    object_name: str
+# class ObjectID(BaseModel):
+#     object_type: str
+#     object_name: str
+
+# class Connection(BaseModel):
+#     from_object: ObjectID
+#     to_object: ObjectID
+#     relation_type: RelationTypeEnum = Field(RelationTypeEnum.default, desription="relation type")
+#     relation_direction: RelationDirectionEnum = RelationDirectionEnum.both
 
 class Connection(BaseModel):
-    from_object: ObjectID
-    to_object: ObjectID
-    relation_type: RelationTypeEnum = Field(RelationTypeEnum.default, desription="relation type")
+    from_: str = Field(alias='from')
+    from_type: str
+    to: str
+    to_type: str
+    relation_type: RelationTypeEnum = Field(RelationTypeEnum.default, description="relation type")
     relation_direction: RelationDirectionEnum = RelationDirectionEnum.both
+    class Config:
+        allow_population_by_field_name = True
 
 # Model
 
 class ModelOld(BaseModel):
-    object_types: Dict[str, ObjectTypeInstance] = Field(description='List of all object types and their corresponding object instances.')
+    object_types: List = Field(description='List of all object types and their corresponding object instances.')
 
 ObjectModel = {
     o: create_model(
@@ -304,14 +314,6 @@ ObjectTypeModel = create_model(
     'ObjectTypeModel',
     **{o: (Dict[str, ObjectModel[o]], None) for o in _SHOP_OBJECT_TYPE_NAMES}
 )
-
-class Connection(BaseModel):
-    from_: str = Field(alias='from')
-    to: str
-    from_type: str
-    to_type: str
-    connection_type: str
-    order: int
 
 class Command(BaseModel):
     command: str

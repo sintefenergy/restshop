@@ -12,7 +12,7 @@ import core
 from core.sessions import SessionManager
 from core.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
         Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, ObjectType, ObjectAttribute, \
-        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, ObjectID, TimeResolution, ModelOld, \
+        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, TimeResolution, ModelOld, \
         ShopModel, Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
 
 from core.interface import set_datatype
@@ -216,6 +216,7 @@ async def create_or_modify_existing_model(
     model: ShopModel = Body(
         None,
         example={
+            'time': None,
             'model': {
                 'reservoir': {
                     'Reservoir1': {
@@ -230,13 +231,27 @@ async def create_or_modify_existing_model(
                             }
                         },
                         'inflow': {
-                            #'values': {'2020-01-01T00:00:00': [ 42.0 ] }
                             'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T05:00:00Z' ],
                             'values': [[42.0, 50.0]]
                         }
+                    },
+                    'Reservoir2': ...
+                },
+                'plant': {
+                    'Plant1': {
+                        ...
                     }
                 }
-            }
+            },
+            'connections': [
+                {
+                    "from": "Reservoir1",
+                    "from_type": "reservoir",
+                    "to": "Plant",
+                    "to_type": "plant"
+                }
+            ],
+            'commands': None
         }
     ),
     session_id = Depends(get_session_id)
@@ -495,13 +510,16 @@ async def get_connections(session_id = Depends(get_session_id)):
                         direction=relation_direction,
                         relation_type=relation_type
                     ):
-                        to_object = serialize_model_object_instance(r)
-                        connections += [Connection(
-                            from_object=ObjectID(object_type=object_type, object_name=object_name),
-                            to_object=ObjectID(object_type=r.get_type(), object_name=r.get_name()),
-                            relation_type=relation_type,
-                            relation_direction=relation_direction,
-                        )]
+                        connections.append(
+                            Connection(
+                                from_=object_name,
+                                from_type=object_type,
+                                to=r.get_name(),
+                                to_type=r.get_type(),
+                                relation_type=relation_type,
+                                relation_direction=relation_direction,
+                            )
+                        )
 
     return connections
 
@@ -509,13 +527,10 @@ async def get_connections(session_id = Depends(get_session_id)):
 async def add_connections(connections: List[Connection], session_id = Depends(get_session_id)):
 
     for connection in connections:
-
-        fo_type, fo_name = connection.from_object.object_type, connection.from_object.object_name
-        to_type, to_name = connection.to_object.object_type, connection.to_object.object_name
         relation_type = connection.relation_type if connection.relation_type != 'default' else ''
 
-        fo = SessionManager.get_model_object_instance(test_user, session_id, fo_type, fo_name)
-        to = SessionManager.get_model_object_instance(test_user, session_id, to_type, to_name)
+        fo = SessionManager.get_model_object_instance(test_user, session_id, connection.from_type, connection.from_)
+        to = SessionManager.get_model_object_instance(test_user, session_id, connection.to_type, connection.to)
 
         fo.connect_to(to, connection_type=relation_type)
 

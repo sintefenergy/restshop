@@ -324,8 +324,10 @@ class TestMain:
             headers={"session-id": str(session_id_manager.session_id)},
             json=[
                 {
-                    'from_object': {'object_type': 'reservoir', 'object_name': 'r1'},
-                    'to_object': {'object_type': 'plant', 'object_name': 'p1'}
+                    'from_type': 'reservoir',
+                    'from': 'r1',
+                    'to_type': 'plant',
+                    'to': 'p1'
                 }
             ]
         )
