@@ -1,11 +1,9 @@
 import json
 
 from datetime import datetime
-from typing import Optional, List
+from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Body, Query, Response, Header
-
-from pydantic import BaseModel, Field
 
 # from fastapi.openapi.models import SchemaBase
 from starlette.responses import RedirectResponse
@@ -13,9 +11,11 @@ from starlette.responses import RedirectResponse
 import core
 from core.sessions import SessionManager
 from core.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
-        Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, Model, ObjectType, ObjectAttribute, \
-        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, ObjectID, \
-        Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
+        Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, ObjectType, ObjectAttribute, \
+        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, ObjectID, TimeResolution, ModelOld, \
+        ShopModel, Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
+
+from core.interface import set_datatype
 
 from pyshop.shopcore.shop_rest import NumpyArrayEncoder
 
@@ -46,6 +46,10 @@ app = FastAPI(
         {
             'name': 'Time Resolution',
             'description': 'Specify the time resolution for the optimization problem',
+        },
+        {
+            'name': 'Object and attribute types',
+            'description': 'Get generic information about available object and attribute types',
         },
         {
             'name': 'Model',
@@ -136,13 +140,6 @@ async def delete_session(session_id: int = Query(1)):
 
 # --------- time_resolution
 
-class TimeResolution(BaseModel):
-    start_time: datetime = Field(description="optimization start time")
-    end_time: datetime = Field(description="optimization end time")
-    time_unit: str = Field('hour', description="optimization time unit")
-    time_resolution: Optional[Series] = None
-
-
 @app.put("/time_resolution", tags=["Time Resolution"])
 async def set_time_resolution(
     time_resolution: TimeResolution = Body(
@@ -201,12 +198,83 @@ async def get_time_resolution(session_id = Depends(get_session_id)):
         time_resolution=Series_from_pd(tr['timeresolution'])
     )
 
+# ------ object types and attributes
+@app.get("/object_types", response_model=List[str], response_model_exclude_unset=True, tags=['Object and attribute types'])
+async def get_model_object_types(session_id = Depends(get_session_id)):
+    return list(shop_session(test_user, session_id).model._all_types)
+
 # ------ model
 
-@app.get("/model", response_model=Model, response_model_exclude_unset=True, tags=['Model'])
+@app.get("/model", response_model=ModelOld, response_model_exclude_unset=True, tags=['Model'])
 async def get_model_object_types(session_id = Depends(get_session_id)):
     types = list(shop_session(test_user, session_id).model._all_types)
-    return Model(object_types = types)
+    return ModelOld(object_types = types)
+
+@app.put("/model", response_model=ShopModel, dependencies=[Depends(check_that_time_resolution_is_set)],
+    response_model_exclude_unset=True, tags=['Model'])
+async def create_or_modify_existing_model(
+    model: ShopModel = Body(
+        None,
+        example={
+            'model': {
+                'reservoir': {
+                    'Reservoir1': {
+                        'vol_head': {
+                            'x_values': [10.0, 20.0, 30.0],
+                            'y_values': [42.0, 43.0, 45.0]
+                        },
+                        'water_value_input': {
+                            '0.0': {
+                                'x_values': [10.0, 9.0, 8.0],
+                                'y_values': [42.0, 20.0, 10.0]
+                            }
+                        },
+                        'inflow': {
+                            #'values': {'2020-01-01T00:00:00': [ 42.0 ] }
+                            'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T05:00:00Z' ],
+                            'values': [[42.0, 50.0]]
+                        }
+                    }
+                }
+            }
+        }
+    ),
+    session_id = Depends(get_session_id)
+):
+    session = shop_session(test_user, session_id)
+    if hasattr(model, 'time'):
+        pass
+    if hasattr(model, 'model'):
+        for (object_type, objects) in model.model:
+            try:
+                object_generator = session.model[object_type]
+            except Exception as e:
+                raise HTTPException(500, f'model does not implement object_type {{{object_type}}}')
+            if objects is not None:
+                object_names = object_generator.get_object_names()
+                for (object_name, object_attributes) in objects.items():
+                    if object_name not in object_names:
+                        try:
+                            object_generator.add_object(object_name)
+                        except Exception as e:
+                            raise HTTPException(500, f'object_name {{{object_name}}} is in conflict with existing instance')
+                    model_object = session.model[object_type][object_name]
+                    if object_attributes:
+                        for (attribute_name, attribute_value) in object_attributes:
+                            if attribute_value is not None:
+                                try:
+                                    datatype = model_object[attribute_name].info()['datatype']
+                                except Exception as e:
+                                    http_raise_internal(f'unknown object_attribute {attribute_name} for {object_type} {object_name}', e)
+                                set_datatype(datatype)(session, object_type, object_name, attribute_name, attribute_value)
+    if hasattr(model, 'connections'):
+        pass
+    if hasattr(model, 'commands'):
+        pass
+
+    # o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
+    # return serialize_model_object_instance(o)
+
 
 # ------ object_type
 

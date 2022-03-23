@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional, Union, Any, OrderedDict
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 from datetime import datetime
 from fastapi import HTTPException
 
@@ -259,8 +259,13 @@ class ObjectInstance(BaseModel):
     # object_type: str = Field('reservoir', description='type of instance')
     attributes: Dict[str, AttributeValue] = Field({}, description='attributes that can be set on the given object_type')
 
+class ObjectTypeInstance(BaseModel):
+    object_type: str
+    instances: Dict[str, ObjectInstance]
+
 class ObjectType(BaseModel):
     object_type: str = Field(description='name of the object_type')
+    # instances: Optional[Dict[str, ObjectInstance]] = Field(description='list of instances of this type')
     instances: List[str] = Field(description='list of instances of this type')
     attributes: Optional[Dict[str, Union[ObjectAttributeTypeEnum, ObjectAttribute]]]  \
         = Field(description='attributes that can be set on the given object_type')
@@ -279,8 +284,46 @@ class Connection(BaseModel):
 
 # Model
 
-class Model(BaseModel):
-    object_types: List[str] = Field(description='list of implemented model object types and associated information')
+class ModelOld(BaseModel):
+    object_types: Dict[str, ObjectTypeInstance] = Field(description='List of all object types and their corresponding object instances.')
+
+ObjectModel = {
+    o: create_model(
+        f'ObjectModel{o}',
+        **{a: (AttributeValue, None) for a in _shop_session.model[o].get_attribute_names()}
+    ) for o in _SHOP_OBJECT_TYPE_NAMES
+}
+
+class TimeResolution(BaseModel):
+    start_time: datetime = Field(description="optimization start time")
+    end_time: datetime = Field(description="optimization end time")
+    time_unit: str = Field('hour', description="optimization time unit")
+    time_resolution: Optional[Series] = None
+
+ObjectTypeModel = create_model(
+    'ObjectTypeModel',
+    **{o: (Dict[str, ObjectModel[o]], None) for o in _SHOP_OBJECT_TYPE_NAMES}
+)
+
+class Connection(BaseModel):
+    from_: str = Field(alias='from')
+    to: str
+    from_type: str
+    to_type: str
+    connection_type: str
+    order: int
+
+class Command(BaseModel):
+    command: str
+    options: List[str]
+    values: List[str]
+
+class ShopModel(BaseModel):
+    time: Optional[TimeResolution]
+    model: Optional[ObjectTypeModel]
+    connections: Optional[List[Connection]]
+    commands: Optional[List[Command]]
+
 
 # Logging
 
