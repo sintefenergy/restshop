@@ -160,7 +160,7 @@ class DataFrame(BaseModel):
 
 def DataFrame_from_pd(data_frame: pd.DataFrame) -> DataFrame:
     
-    if data_frame is None or len(df) == 0:
+    if data_frame is None or len(data_frame) == 0:
         return None
 
     columns = {
@@ -308,7 +308,7 @@ class TimeResolution(BaseModel):
     start_time: datetime = Field(description="optimization start time")
     end_time: datetime = Field(description="optimization end time")
     time_unit: str = Field('hour', description="optimization time unit")
-    time_resolution: Optional[Series] = None
+    time_resolution: Optional[TimeSeries] = None
 
 ObjectTypeModel = create_model(
     'ObjectTypeModel',

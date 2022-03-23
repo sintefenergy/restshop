@@ -210,86 +210,250 @@ async def get_model_object_types(session_id = Depends(get_session_id)):
     types = list(shop_session(test_user, session_id).model._all_types)
     return ModelOld(object_types = types)
 
-@app.put("/model", response_model=ShopModel, dependencies=[Depends(check_that_time_resolution_is_set)],
-    response_model_exclude_unset=True, tags=['Model'])
+@app.put("/model", response_model=ShopModel, response_model_exclude_unset=True, tags=['Model'])
 async def create_or_modify_existing_model(
     model: ShopModel = Body(
         None,
         example={
-            'time': None,
+            'time': {
+                'start_time':'2020-01-01T00:00:00Z',
+                'end_time': '2020-01-02T00:00:00Z',
+                'time_unit': 'minute',
+                'time_resolution': {
+                    'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T01:00:00Z'],
+                    'values': [[15, 60]]
+                }
+
+            },
             'model': {
                 'reservoir': {
                     'Reservoir1': {
-                        'vol_head': {
-                            'x_values': [10.0, 20.0, 30.0],
-                            'y_values': [42.0, 43.0, 45.0]
+                        'max_vol': 12,
+                        'lrl': 90,
+                        'hrl': 100,
+                        'vol_head': { # Curve
+                            'y_values': [90, 100, 101],
+                            'x_values': [0, 12, 14]
                         },
-                        'water_value_input': {
-                            '0.0': {
-                                'x_values': [10.0, 9.0, 8.0],
-                                'y_values': [42.0, 20.0, 10.0]
-                            }
+                        'flow_descr': { # Curve 
+                            'y_values': [0, 1000],
+                            'x_values': [100, 101]
                         },
+                        'start_head': 92,
+                        'energy_value_input': 39.7,
                         'inflow': {
-                            'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T05:00:00Z' ],
-                            'values': [[42.0, 50.0]]
+                            'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T01:00:00Z' ],
+                            'values': [[101.0, 50.0]]
                         }
                     },
-                    'Reservoir2': ...
+                    'Reservoir2': {
+                        'max_vol': 5,
+                        'lrl': 40,
+                        'hrl': 50,
+                        'vol_head': { # Curve
+                            'y_values': [40, 50, 51],
+                            'x_values': [0, 5, 6]
+                        },
+                        'flow_descr': { # Curve 
+                            'y_values': [0, 1000],
+                            'x_values': [50, 51]
+                        },
+                        'start_head': 43,
+                        'energy_value_input': 38.6
+                    },
                 },
                 'plant': {
                     'Plant1': {
-                        ...
+                        'outlet_line': 40,
+                        'main_loss': [0.0002],
+                        'penstock_loss': [0.0001]
+                    },
+                    'Plant2': {
+                        'outlet_line': 0,
+                        'main_loss': [0.0002],
+                        'penstock_loss': [0.0001]
+                    }
+                },
+                'generator': {
+                    'Plant1_G1': {
+                        'penstock': 1,
+                        'p_min': 25,
+                        'p_max': 100,
+                        'p_nom': 100,
+                        'startcost': 500,
+                        'gen_eff_curve': { #Curve 
+                            'y_values': [95, 98],
+                            'x_values': [0, 100]
+                        },
+                        'turb_eff_curves': { #Dict[float, Curve]
+                            '90': { # Curve
+                                'y_values': [80, 95, 90],
+                                'x_values': [25, 90, 100]
+                            },
+                            '100': { # Curve
+                                'y_values': [82, 98, 92],
+                                'x_values': [25, 90, 100]
+                            }
+                        }
+                    },
+                    'Plant2_G1': {
+                        'penstock': 1,
+                        'p_min': 25,
+                        'p_max': 100,
+                        'p_nom': 100,
+                        'startcost': 500,
+                        'gen_eff_curve': { #Curve 
+                            'y_values': [95, 98],
+                            'x_values': [0, 100]
+                        },
+                        'turb_eff_curves': { #Dict[float, Curve]
+                            '90': { # Curve
+                                'y_values': [80, 95, 90],
+                                'x_values': [25, 90, 100]
+                            },
+                            '100': { # Curve
+                                'y_values': [82, 98, 92],
+                                'x_values': [25, 90, 100]
+                            }
+                        }
+                    }
+                },
+                'market': {
+                    'Day_ahead': {
+                        'sale_price': 39.99,
+                        'buy_price': 40.01,
+                        'max_buy': 9999,
+                        'max_sale': 9999
                     }
                 }
             },
             'connections': [
                 {
-                    "from": "Reservoir1",
-                    "from_type": "reservoir",
-                    "to": "Plant",
-                    "to_type": "plant"
+                    'from_type': 'plant',
+                    'from': 'Plant1',
+                    'to_type': 'generator',
+                    'to': 'Plant1_G1'
+                },
+                {
+                    'from_type': 'plant',
+                    'from': 'Plant2',
+                    'to_type': 'generator',
+                    'to': 'Plant2_G1'
+                },
+                { #Reservoir1 -> Plant1
+                    'from_type': 'reservoir',
+                    'from': 'Reservoir1',
+                    'to_type': 'plant',
+                    'to': 'Plant1'
+                },
+                { # Plant1 -> Reservoir2
+                    'from_type': 'plant',
+                    'from': 'Plant1',
+                    'to_type': 'reservoir',
+                    'to': 'Reservoir2'
+                },
+                { # Reservoir2 -> Plant2
+                    'from_type': 'reservoir',
+                    'from': 'Reservoir2',
+                    'to_type': 'plant',
+                    'to': 'Plant2'
                 }
             ],
-            'commands': None
+            'commands': [
+                {
+                    'command': 'start sim',
+                    'options': [],
+                    'values': ['3']
+                },
+                {
+                    'command': 'set code',
+                    'options': ['incremental'],
+                    'values': []
+                },
+                {
+                    'command': 'start sim',
+                    'options': [],
+                    'values': ['3']
+                },
+            ]
         }
     ),
     session_id = Depends(get_session_id)
 ):
     session = shop_session(test_user, session_id)
     if hasattr(model, 'time'):
-        pass
+        if model.time is not None:
+            time_resolution: TimeResolution = model.time
+            start = pd.Timestamp(time_resolution.start_time)
+            end = pd.Timestamp(time_resolution.end_time)
+
+            if (end <= start):
+                raise HTTPException(400, 'end_time must be strictly greater than start_time')
+
+            if (time_resolution.time_resolution):
+                tr: Series = time_resolution.time_resolution
+                session.set_time_resolution(
+                    starttime=start,
+                    endtime=end,
+                    timeunit=time_resolution.time_unit,
+                    timeresolution=pd.Series(index=tr.timestamps, data=tr.values[0])
+                )
+            else:
+                session.set_time_resolution(
+                    starttime=start,
+                    endtime=end,
+                    timeunit=time_resolution.time_unit
+                )
+
+            # store the fact that time_resolution has been set
+            us = SessionManager.get_user_session(test_user)
+            us.shop_sessions_time_resolution_is_set[session_id] = True
     if hasattr(model, 'model'):
-        for (object_type, objects) in model.model:
-            try:
-                object_generator = session.model[object_type]
-            except Exception as e:
-                raise HTTPException(500, f'model does not implement object_type {{{object_type}}}')
-            if objects is not None:
-                object_names = object_generator.get_object_names()
-                for (object_name, object_attributes) in objects.items():
-                    if object_name not in object_names:
-                        try:
-                            object_generator.add_object(object_name)
-                        except Exception as e:
-                            raise HTTPException(500, f'object_name {{{object_name}}} is in conflict with existing instance')
-                    model_object = session.model[object_type][object_name]
-                    if object_attributes:
-                        for (attribute_name, attribute_value) in object_attributes:
-                            if attribute_value is not None:
-                                try:
-                                    datatype = model_object[attribute_name].info()['datatype']
-                                except Exception as e:
-                                    http_raise_internal(f'unknown object_attribute {attribute_name} for {object_type} {object_name}', e)
-                                set_datatype(datatype)(session, object_type, object_name, attribute_name, attribute_value)
+        if model.model is not None:
+            for (object_type, objects) in model.model:
+                try:
+                    object_generator = session.model[object_type]
+                except Exception as e:
+                    raise HTTPException(500, f'model does not implement object_type {{{object_type}}}')
+                if objects is not None:
+                    object_names = object_generator.get_object_names()
+                    for (object_name, object_attributes) in objects.items():
+                        if object_name not in object_names:
+                            try:
+                                object_generator.add_object(object_name)
+                            except Exception as e:
+                                raise HTTPException(500, f'object_name {{{object_name}}} is in conflict with existing instance')
+                        model_object = session.model[object_type][object_name]
+                        if object_attributes:
+                            for (attribute_name, attribute_value) in object_attributes:
+                                if attribute_value is not None:
+                                    try:
+                                        datatype = model_object[attribute_name].info()['datatype']
+                                    except Exception as e:
+                                        http_raise_internal(f'unknown object_attribute {attribute_name} for {object_type} {object_name}', e)
+                                    set_datatype(datatype)(session, object_type, object_name, attribute_name, attribute_value)
     if hasattr(model, 'connections'):
-        pass
+        if model.connections is not None:
+            for connection in model.connections:
+                relation_type = connection.relation_type if connection.relation_type != 'default' else ''
+
+                fo = SessionManager.get_model_object_instance(test_user, session_id, connection.from_type, connection.from_)
+                to = SessionManager.get_model_object_instance(test_user, session_id, connection.to_type, connection.to)
+
+                fo.connect_to(to, connection_type=relation_type)
     if hasattr(model, 'commands'):
-        pass
-
-    # o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
-    # return serialize_model_object_instance(o)
-
+        if model.commands is not None:
+            for command in model.commands:
+                # session._command = command.command
+                try:
+                    # status: bool = session._execute_command(command.options, command.values) # does this return anything
+                    status: bool = session.shop_api.ExecuteCommand(command.command, command.options, command.values)
+                except Exception as e:
+                    http_raise_internal('failed to execute simulation command', e)
+                return CommandStatus(
+                    message=('ok' if status else 'something went wrong ...'),
+                    status=status
+                )
 
 # ------ object_type
 
