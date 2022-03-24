@@ -316,7 +316,7 @@ class ModelOld(BaseModel):
 ObjectModel = {
     o: create_model(
         f'ObjectModel{o}',
-        **{a: (AttributeValue, None) for a in _shop_session.model[o].get_attribute_names()}
+        **{a: (AttributeValue, None) for a in _shop_session.shop_api.GetObjectTypeAttributeNames(o)}
     ) for o in _SHOP_OBJECT_TYPE_NAMES
 }
 
