@@ -7,6 +7,9 @@ from fastapi import HTTPException
 import numpy as np
 import pandas as pd
 
+from pyshop import ShopSession
+from pyshop.shopcore.shop_api import get_attribute_info
+
 from .sessions import SessionManager
 
 # this dummy user and session is used to dynamically get enums and other metadata from a live ShopSession
@@ -345,16 +348,17 @@ class ShopModel(BaseModel):
 class LoggingEndpoint(BaseModel):
     endpoint: str
     
-def serialize_model_object_attribute(attribute: Any) -> AttributeValue:
+def serialize_model_object_attribute(shop_session: ShopSession, object_type: str, object_name: str, attribute_name: str) -> AttributeValue:
 
-    attribute_type = new_attribute_type_name_from_old(attribute.info()['datatype'])
-    attribute_name = attribute._attr_name
-    info = attribute.info()
+    # attribute_type = new_attribute_type_name_from_old(attribute.info()['datatype'])
+    attribute_type = new_attribute_type_name_from_old(attribute_map[object_type][attribute_name]['datatype'])
+    # attribute_name = attribute._attr_name
+    info = attribute_map[object_type][attribute_name]
 
     attribute_y_unit = info['yUnit'] if 'yUnit' in info else 'unknown'
     attribute_x_unit = info['xUnit'] if 'xUnit' in info else 'unknown'
 
-    value = attribute.get()
+    value = shop_session.model[object_type][object_name][attribute_name].get()
 
     if value is None:
         return None
@@ -433,15 +437,15 @@ def serialize_model_object_attribute(attribute: Any) -> AttributeValue:
     raise HTTPException(500, f"{attribute_type}: cannot parse <{type(value)}>")
 
 
-def serialize_model_object_instance(o: Any) -> ObjectInstance:
+def serialize_model_object_instance(shop_session: ShopSession, object_type: str, object_name: str) -> ObjectInstance:
 
-    attribute_names = list(o._attr_names)
+    # attribute_names = list(o._attr_names)
 
     return ObjectInstance(
         # object_type = o.get_type(),
         # object_name = o.get_name(),
         attributes = {
-            name: serialize_model_object_attribute((getattr(o, name))) for name in attribute_names
+            attribute_name: serialize_model_object_attribute(shop_session, object_type, object_name, attribute_name) for attribute_name in attribute_map[object_type]
         }
     )
 
@@ -449,3 +453,8 @@ class CommandArguments(BaseModel):
     options: List[str] = []
     values: List[str] = []
 
+attribute_map = dict()
+for ot in _SHOP_OBJECT_TYPE_NAMES:
+    attribute_map[ot] = dict()
+    for at in _shop_session.model[ot].get_attribute_names():
+        attribute_map[ot][at] = get_attribute_info(_shop_session.shop_api, ot, at)

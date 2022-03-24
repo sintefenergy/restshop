@@ -13,7 +13,8 @@ from core.sessions import SessionManager
 from core.schemas import ObjectTypeModel, ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
         Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, ObjectType, ObjectAttribute, \
         ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, TimeResolution, ModelOld, \
-        ShopModel, Series_from_pd, TimeSeries_from_pd, new_attribute_type_name_from_old, serialize_model_object_attribute, serialize_model_object_instance
+        ShopModel, Series_from_pd, TimeSeries_from_pd, new_attribute_type_name_from_old, serialize_model_object_attribute, serialize_model_object_instance, \
+        attribute_map
 
 from core.interface import set_datatype, get_model_connections
 
@@ -238,7 +239,7 @@ async def get_model(
             attribute_list = session.model[ot].get_attribute_names() if attribute_name is None else [attribute_name]
             model_dict[ot][on] = dict()
             for attr in attribute_list:
-                model_dict[ot][on][attr] = serialize_model_object_attribute(session.model[ot][on][attr])
+                model_dict[ot][on][attr] = serialize_model_object_attribute(session, ot, on, attr)
     model = ObjectTypeModel(**model_dict)
 
     # Get connections
@@ -468,7 +469,7 @@ async def create_or_modify_existing_model(
                             for (attribute_name, attribute_value) in object_attributes:
                                 if attribute_value is not None:
                                     try:
-                                        datatype = model_object[attribute_name].info()['datatype']
+                                        datatype = attribute_map[object_type][attribute_name]['datatype']  #model_object[attribute_name].info()['datatype']
                                     except Exception as e:
                                         http_raise_internal(f'unknown object_attribute {attribute_name} for {object_type} {object_name}', e)
                                     set_datatype(datatype)(session, object_type, object_name, attribute_name, attribute_value)
@@ -616,7 +617,7 @@ async def create_or_modify_existing_model_object_instance(
         for (k,v) in object_instance.attributes.items():
 
             try:
-                datatype = model_object[k].info()['datatype']
+                datatype = attribute_map[object_type][k]['datatype'] #model_object[k].info()['datatype']
             except Exception as e:
                 http_raise_internal(f'unknown object_attribute {k} for object_type {object_type}', e)
 
@@ -679,7 +680,7 @@ async def create_or_modify_existing_model_object_instance(
                     http_raise_internal(f'trouble setting {{{datatype}}} ', e)
 
     o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
-    return serialize_model_object_instance(o)
+    return serialize_model_object_instance(session, object_type, object_name)
 
 @app.get("/model/{object_type}", response_model=ObjectInstance, dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Model'])
 async def get_model_object_instance(
@@ -692,8 +693,9 @@ async def get_model_object_instance(
     if attribute_filter != '*':
         raise HTTPException(500, 'setting attribute_filter != * is not support yet')
 
-    o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
-    return serialize_model_object_instance(o)
+    SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name) # Check that object exists
+    session = shop_session(test_user, session_id)
+    return serialize_model_object_instance(session, object_type, object_name)
 
 
 # ------ connection
