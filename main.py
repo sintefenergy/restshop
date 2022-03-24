@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Body, Query, Response, Header
+from matplotlib.pyplot import connect
 
 # from fastapi.openapi.models import SchemaBase
 from starlette.responses import RedirectResponse
@@ -209,41 +210,52 @@ async def get_model_object_types(session_id = Depends(get_session_id)):
 @app.get("/model", response_model=ShopModel, response_model_exclude_unset=True, tags=['Model'])
 async def get_model(
         session_id = Depends(get_session_id),
-        object_type: str = None,
-        object_name: str = None,
-        attribute_name: str = None
+        objectType: str = None,
+        objectName: str = None,
+        attributeName: str = None,
+        isInput: bool = False,
+        isOutput: bool = True,
+        includeTime: bool = False,
+        includeConnections: bool = False
     ):
     session = shop_session(test_user, session_id)
 
     # Get time resolution
-    time_res = session.get_time_resolution()
-    time = TimeResolution(
-        start_time=time_res['starttime'],
-        end_time=time_res['endtime'],
-        time_unit=time_res['timeunit'],
-        time_resolution=TimeSeries_from_pd(time_res['timeresolution'])
-    )
+    if includeTime:
+        time_res = session.get_time_resolution()
+        time = TimeResolution(
+            start_time=time_res['starttime'],
+            end_time=time_res['endtime'],
+            time_unit=time_res['timeunit'],
+            time_resolution=TimeSeries_from_pd(time_res['timeresolution'])
+        )
+    else:
+        time = None
 
     # Get model objects
-    object_types = session.model._all_types if object_type is None else [object_type]
+    object_types = session.model._all_types if objectType is None else [objectType]
     model_dict = dict()
     for ot in object_types:
-        if object_name is None:
+        if objectName is None:
             object_list = session.model[ot].get_object_names()
             if len(object_list) == 0:
                 continue
         else:
-            object_list = [object_name]
+            object_list = [objectName]
         model_dict[ot] = dict()
         for on in object_list:
-            attribute_list = session.model[ot].get_attribute_names() if attribute_name is None else [attribute_name]
+            attribute_list = session.model[ot].get_attribute_names() if attributeName is None else [attributeName]
             model_dict[ot][on] = dict()
             for attr in attribute_list:
-                model_dict[ot][on][attr] = serialize_model_object_attribute(session, ot, on, attr)
+                if (attribute_map[ot][attr]['isInput'] and isInput) or (attribute_map[ot][attr]['isOutput'] and isOutput):
+                    model_dict[ot][on][attr] = serialize_model_object_attribute(session, ot, on, attr)
     model = ObjectTypeModel(**model_dict)
 
     # Get connections
-    connections = get_model_connections(session)
+    if includeConnections:
+        connections = get_model_connections(session)
+    else:
+        connections = None
 
     return ShopModel(
         time=time,
