@@ -10,12 +10,12 @@ from starlette.responses import RedirectResponse
 
 import core
 from core.sessions import SessionManager
-from core.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
+from core.schemas import ObjectTypeModel, ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
         Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, ObjectType, ObjectAttribute, \
         ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, TimeResolution, ModelOld, \
-        ShopModel, Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
+        ShopModel, Series_from_pd, TimeSeries_from_pd, new_attribute_type_name_from_old, serialize_model_object_attribute, serialize_model_object_instance
 
-from core.interface import set_datatype
+from core.interface import set_datatype, get_model_connections
 
 from pyshop.shopcore.shop_rest import NumpyArrayEncoder
 
@@ -205,10 +205,50 @@ async def get_model_object_types(session_id = Depends(get_session_id)):
 
 # ------ model
 
-@app.get("/model", response_model=ModelOld, response_model_exclude_unset=True, tags=['Model'])
-async def get_model_object_types(session_id = Depends(get_session_id)):
-    types = list(shop_session(test_user, session_id).model._all_types)
-    return ModelOld(object_types = types)
+@app.get("/model", response_model=ShopModel, response_model_exclude_unset=True, tags=['Model'])
+async def get_model(
+        session_id = Depends(get_session_id),
+        object_type: str = None,
+        object_name: str = None,
+        attribute_name: str = None
+    ):
+    session = shop_session(test_user, session_id)
+
+    # Get time resolution
+    time_res = session.get_time_resolution()
+    time = TimeResolution(
+        start_time=time_res['starttime'],
+        end_time=time_res['endtime'],
+        time_unit=time_res['timeunit'],
+        time_resolution=TimeSeries_from_pd(time_res['timeresolution'])
+    )
+
+    # Get model objects
+    object_types = session.model._all_types if object_type is None else [object_type]
+    model_dict = dict()
+    for ot in object_types:
+        if object_name is None:
+            object_list = session.model[ot].get_object_names()
+            if len(object_list) == 0:
+                continue
+        else:
+            object_list = [object_name]
+        model_dict[ot] = dict()
+        for on in object_list:
+            attribute_list = session.model[ot].get_attribute_names() if attribute_name is None else [attribute_name]
+            model_dict[ot][on] = dict()
+            for attr in attribute_list:
+                model_dict[ot][on][attr] = serialize_model_object_attribute(session.model[ot][on][attr])
+    model = ObjectTypeModel(**model_dict)
+
+    # Get connections
+    connections = get_model_connections(session)
+
+    return ShopModel(
+        time=time,
+        model=model,
+        connections=connections,
+    )
 
 @app.put("/model", response_model=ShopModel, response_model_exclude_unset=True, tags=['Model'])
 async def create_or_modify_existing_model(
@@ -661,31 +701,7 @@ async def get_model_object_instance(
 
 @app.get("/connections", response_model=List[Connection], dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Connections'])
 async def get_connections(session_id = Depends(get_session_id)):
-
-    connections = []
-
-    for object_type in shop_session(test_user, session_id).model._all_types:
-        generator = SessionManager.get_model_object_generator(test_user, session_id, object_type)
-        for object_name in generator.get_object_names():
-            from_object = generator[object_name]
-            for relation_direction in RelationDirectionEnum:
-                for relation_type in RelationTypeEnum:
-                    for r in from_object.get_relations(
-                        direction=relation_direction,
-                        relation_type=relation_type
-                    ):
-                        connections.append(
-                            Connection(
-                                from_=object_name,
-                                from_type=object_type,
-                                to=r.get_name(),
-                                to_type=r.get_type(),
-                                relation_type=relation_type,
-                                relation_direction=relation_direction,
-                            )
-                        )
-
-    return connections
+    return get_model_connections(shop_session(test_user, session_id))
 
 @app.put("/connections", dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Connections'])
 async def add_connections(connections: List[Connection], session_id = Depends(get_session_id)):

@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from fastapi import HTTPException
 from pyshop import ShopSession
-from .schemas import TimeSeries, Curve
+from .schemas import TimeSeries, Curve, Connection, RelationDirectionEnum, RelationTypeEnum
 
 
 def set_txy(shop: ShopSession, object_type: str, object_name: str, attribute_name: str, value: Union[TimeSeries, int, float]):
@@ -72,3 +72,29 @@ def set_datatype(datatype: str) -> Callable:
         'double': set_double
     }
     return switcher.get(datatype, set_default)
+
+def get_model_connections(shop: ShopSession) -> List[Connection]:
+    connections = []
+
+    for object_type in shop.model._all_types:
+        generator = shop.model[object_type]
+        for object_name in generator.get_object_names():
+            from_object = generator[object_name]
+            for relation_direction in RelationDirectionEnum:
+                for relation_type in RelationTypeEnum:
+                    for r in from_object.get_relations(
+                        direction=relation_direction,
+                        relation_type=relation_type
+                    ):
+                        connections.append(
+                            Connection(
+                                from_=object_name,
+                                from_type=object_type,
+                                to=r.get_name(),
+                                to_type=r.get_type(),
+                                relation_type=relation_type,
+                                relation_direction=relation_direction,
+                            )
+                        )
+
+    return connections

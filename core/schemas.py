@@ -183,6 +183,17 @@ class TimeSeries(BaseModel):
     timestamps: List[datetime]
     values: List[List[float]]
 
+def TimeSeries_from_pd(series: pd.Series) -> TimeSeries:
+
+    if series is None or len(series) == 0:
+        return None
+
+    return TimeSeries(
+        name = series.name,
+        timestamps = list(series.index),
+        values = [list(series.values)]
+    )
+
 class Curve(BaseModel):
     x_unit: Optional[str] = Field('MW', description='unit of x_values')
     y_unit: Optional[str] = Field('%', description='unit of y_values')
@@ -205,6 +216,7 @@ class ObjectAttributeTypeEnum(str, Enum):
     datetime = 'datetime'
     float_array = 'float_array',
     integer_array = 'integer_array',
+    string_array = 'string_array';
     Curve = 'Curve'
     MapFloatCurve = 'OrderedDict[float, Curve]'
     MapTimeCurve = 'OrderedDict[datetime, Curve]'
@@ -221,6 +233,7 @@ def new_attribute_type_name_from_old(name: str) -> ObjectAttributeTypeEnum:
         'string': ObjectAttributeTypeEnum.string,
         'double_array': ObjectAttributeTypeEnum.float_array,
         'int_array': ObjectAttributeTypeEnum.integer_array,
+        'string_array': ObjectAttributeTypeEnum.string_array,
         'xy': ObjectAttributeTypeEnum.Curve,
         'xy_array': ObjectAttributeTypeEnum.MapFloatCurve,
         'xyn': ObjectAttributeTypeEnum.MapFloatCurve,
@@ -366,6 +379,9 @@ def serialize_model_object_attribute(attribute: Any) -> AttributeValue:
 
     if attribute_type == ObjectAttributeTypeEnum.integer_array:
         return np.array(value, dtype=int).tolist()
+
+    if attribute_type == ObjectAttributeTypeEnum.string_array:
+        return np.array(value, dtype=str).tolist()
 
     if attribute_type == ObjectAttributeTypeEnum.TimeSeries:
 
