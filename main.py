@@ -611,8 +611,6 @@ async def create_or_modify_existing_model_object_instance(
         except Exception as e:
             raise HTTPException(500, f'object_name {{{object_name}}} is in conflict with existing instance')
 
-    model_object = session.model[object_type][object_name]
-
     if object_instance and object_instance.attributes:
         for (k,v) in object_instance.attributes.items():
 
@@ -620,66 +618,9 @@ async def create_or_modify_existing_model_object_instance(
                 datatype = attribute_map[object_type][k]['datatype'] #model_object[k].info()['datatype']
             except Exception as e:
                 http_raise_internal(f'unknown object_attribute {k} for object_type {object_type}', e)
+            set_datatype(datatype)(session, object_type, object_name, k, v)
 
-            if datatype == 'txy':
-
-                # convert scalar values to TimeSeries
-                if type(v) == float or type(v) == int:
-                    start_time = shop_session(test_user, session_id).get_time_resolution()['starttime']
-                    v = TimeSeries(
-                        timestamps=[start_time],
-                        values=[[v]]
-                    )
-                try:
-                    time_series: TimeSeries = v
-                    # index, values = zip(*time_series.values.items())
-                    index, values = time_series.timestamps, np.transpose(time_series.values)
-                    df = pd.DataFrame(index=index, data=values)
-                    model_object[k].set(df)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-            elif datatype == 'xy':
-                try:
-                    curve: Curve = v
-                    ser = pd.Series(index=curve.x_values, data=curve.y_values)
-                    model_object[k].set(ser)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-            elif datatype in ['xy_array', 'xyn']:
-                try:
-                    curves: OrderedDict[float, Curve] = v
-                    ser_list = []
-                    for ref, curve in curves.items():
-                        ser_list += [pd.Series(index=curve.x_values, data=curve.y_values, name=ref)]
-                    model_object[k].set(ser_list)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-            elif datatype == 'xyt':
-                try:
-                    curves: OrderedDict[datetime, Curve] = v
-                    ser_list = []
-                    for ref, curve in curves.items():
-                        ser_list += [pd.Series(index=curve.x_values, data=curve.y_values, name=ref)]
-                    model_object[k].set(ser_list)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-                
-            elif datatype == 'double':
-                model_object[k].set(float(v))
-
-            elif datatype == 'int':
-                model_object[k].set(int(v))
-
-            else:
-                try:
-                    model_object[k].set(v)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-    o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
+    SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
     return serialize_model_object_instance(session, object_type, object_name)
 
 @app.get("/model/{object_type}", response_model=ObjectInstance, dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Model'])
