@@ -456,5 +456,5 @@ class CommandArguments(BaseModel):
 attribute_map = dict()
 for ot in _SHOP_OBJECT_TYPE_NAMES:
     attribute_map[ot] = dict()
-    for at in _shop_session.model[ot].get_attribute_names():
+    for at in _shop_session.shop_api.GetObjectTypeAttributeNames(ot):
         attribute_map[ot][at] = get_attribute_info(_shop_session.shop_api, ot, at)

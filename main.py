@@ -244,7 +244,7 @@ async def get_model(
             object_list = [objectName]
         model_dict[ot] = dict()
         for on in object_list:
-            attribute_list = session.model[ot].get_attribute_names() if attributeName is None else [attributeName]
+            attribute_list = session.shop_api.GetObjectTypeAttributeNames(ot) if attributeName is None else [attributeName]
             model_dict[ot][on] = dict()
             for attr in attribute_list:
                 if (attribute_map[ot][attr]['isInput'] and isInput) or (attribute_map[ot][attr]['isOutput'] and isOutput):
