@@ -9,6 +9,7 @@ import pandas as pd
 
 from pyshop import ShopSession
 from pyshop.shopcore.shop_api import get_attribute_info
+from pyshop.helpers.timeseries import remove_consecutive_duplicates
 
 from .sessions import SessionManager
 
@@ -348,7 +349,7 @@ class ShopModel(BaseModel):
 class LoggingEndpoint(BaseModel):
     endpoint: str
     
-def serialize_model_object_attribute(shop_session: ShopSession, object_type: str, object_name: str, attribute_name: str) -> AttributeValue:
+def serialize_model_object_attribute(shop_session: ShopSession, object_type: str, object_name: str, attribute_name: str, compressTxy: bool) -> AttributeValue:
 
     # attribute_type = new_attribute_type_name_from_old(attribute.info()['datatype'])
     attribute_type = new_attribute_type_name_from_old(attribute_map[object_type][attribute_name]['datatype'])
@@ -390,7 +391,8 @@ def serialize_model_object_attribute(shop_session: ShopSession, object_type: str
     if attribute_type == ObjectAttributeTypeEnum.TimeSeries:
 
         if isinstance(value, pd.Series) or isinstance(value, pd.DataFrame):
-            
+            if compressTxy:
+                value = remove_consecutive_duplicates(value)
             if isinstance(value, pd.Series):
                 # values = {t: [v] for t, v in zip(value.index.values, value.values)}
                 timestamps = value.index.values.tolist()
@@ -445,7 +447,7 @@ def serialize_model_object_instance(shop_session: ShopSession, object_type: str,
         # object_type = o.get_type(),
         # object_name = o.get_name(),
         attributes = {
-            attribute_name: serialize_model_object_attribute(shop_session, object_type, object_name, attribute_name) for attribute_name in attribute_map[object_type]
+            attribute_name: serialize_model_object_attribute(shop_session, object_type, object_name, attribute_name, False) for attribute_name in attribute_map[object_type]
         }
     )
 

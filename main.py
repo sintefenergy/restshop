@@ -207,16 +207,18 @@ async def get_model_object_types(session_id = Depends(get_session_id)):
 
 # ------ model
 
-@app.get("/model", response_model=ShopModel, response_model_exclude_unset=True, tags=['Model'])
+@app.get("/model", response_model=ShopModel, response_model_exclude_unset=True, response_model_exclude_none=True, tags=['Model'])
 async def get_model(
         session_id = Depends(get_session_id),
         objectType: str = None,
         objectName: str = None,
         attributeName: str = None,
+        datatype: str = None,
         isInput: bool = False,
         isOutput: bool = True,
         includeTime: bool = False,
-        includeConnections: bool = False
+        includeConnections: bool = False,
+        compressTxy: bool = False
     ):
     session = shop_session(test_user, session_id)
 
@@ -247,8 +249,10 @@ async def get_model(
             attribute_list = session.shop_api.GetObjectTypeAttributeNames(ot) if attributeName is None else [attributeName]
             model_dict[ot][on] = dict()
             for attr in attribute_list:
-                if (attribute_map[ot][attr]['isInput'] and isInput) or (attribute_map[ot][attr]['isOutput'] and isOutput):
-                    model_dict[ot][on][attr] = serialize_model_object_attribute(session, ot, on, attr)
+                if ((attribute_map[ot][attr]['isInput'] and isInput)
+                        or (attribute_map[ot][attr]['isOutput'] and isOutput)
+                        and ((datatype is None) or datatype == attribute_map[ot][attr]['datatype'])):
+                    model_dict[ot][on][attr] = serialize_model_object_attribute(session, ot, on, attr, compressTxy)
     model = ObjectTypeModel(**model_dict)
 
     # Get connections
