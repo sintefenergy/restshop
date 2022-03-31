@@ -1,6 +1,6 @@
 # REST SHOP
 
-REST SHOP is built on [FastAPI](https://fastapi.tiangolo.com/). Hosting of the server with uvicorn or docker is explained below, for other hosting options please visit the [FastAPI documentation](https://fastapi.tiangolo.com/deployment/).
+REST SHOP is a REST API for the hydropower scheduling model SHOP developed by SINTEF. The API is built on [FastAPI](https://fastapi.tiangolo.com/). Hosting of the server with uvicorn/hypercorn or docker is explained below, for other hosting options please visit the [FastAPI documentation](https://fastapi.tiangolo.com/deployment/). REST SHOP can also be hosted on [Windows server with IIS](#hosting-with-iis).
 
 > WARNING: REST SHOP does not implement secure communication and should never be exposed on the internet.
 
