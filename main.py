@@ -514,6 +514,12 @@ async def create_or_modify_existing_model(
 
 # ------ object_type
 
+@app.get("/model/information", tags=['Model'])
+async def get_model_object_type_information_all(
+    session_id = Depends(get_session_id)
+):
+    return attribute_map
+
 @app.get("/model/{object_type}/information", response_model=ObjectType, response_model_exclude_unset=True, tags=['Model'])
 async def get_model_object_type_information(
     object_type: ObjectTypeEnum,
