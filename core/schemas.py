@@ -1,11 +1,15 @@
 from typing import List, Dict, Optional, Union, Any, OrderedDict
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 from datetime import datetime
 from fastapi import HTTPException
 
 import numpy as np
 import pandas as pd
+
+from pyshop import ShopSession
+from pyshop.shopcore.shop_api import get_attribute_info
+from pyshop.helpers.timeseries import remove_consecutive_duplicates
 
 from .sessions import SessionManager
 
@@ -160,7 +164,7 @@ class DataFrame(BaseModel):
 
 def DataFrame_from_pd(data_frame: pd.DataFrame) -> DataFrame:
     
-    if data_frame is None or len(df) == 0:
+    if data_frame is None or len(data_frame) == 0:
         return None
 
     columns = {
@@ -182,6 +186,17 @@ class TimeSeries(BaseModel):
     # values: Dict[datetime, List[float]] = Field({}, description='values')
     timestamps: List[datetime]
     values: List[List[float]]
+
+def TimeSeries_from_pd(series: pd.Series) -> TimeSeries:
+
+    if series is None or len(series) == 0:
+        return None
+
+    return TimeSeries(
+        name = series.name,
+        timestamps = list(series.index),
+        values = [list(series.values)]
+    )
 
 class Curve(BaseModel):
     x_unit: Optional[str] = Field('MW', description='unit of x_values')
@@ -205,6 +220,7 @@ class ObjectAttributeTypeEnum(str, Enum):
     datetime = 'datetime'
     float_array = 'float_array',
     integer_array = 'integer_array',
+    string_array = 'string_array';
     Curve = 'Curve'
     MapFloatCurve = 'OrderedDict[float, Curve]'
     MapTimeCurve = 'OrderedDict[datetime, Curve]'
@@ -221,6 +237,7 @@ def new_attribute_type_name_from_old(name: str) -> ObjectAttributeTypeEnum:
         'string': ObjectAttributeTypeEnum.string,
         'double_array': ObjectAttributeTypeEnum.float_array,
         'int_array': ObjectAttributeTypeEnum.integer_array,
+        'string_array': ObjectAttributeTypeEnum.string_array,
         'xy': ObjectAttributeTypeEnum.Curve,
         'xy_array': ObjectAttributeTypeEnum.MapFloatCurve,
         'xyn': ObjectAttributeTypeEnum.MapFloatCurve,
@@ -259,44 +276,90 @@ class ObjectInstance(BaseModel):
     # object_type: str = Field('reservoir', description='type of instance')
     attributes: Dict[str, AttributeValue] = Field({}, description='attributes that can be set on the given object_type')
 
+class ObjectTypeInstance(BaseModel):
+    object_type: str
+    instances: Dict[str, ObjectInstance]
+
 class ObjectType(BaseModel):
     object_type: str = Field(description='name of the object_type')
+    # instances: Optional[Dict[str, ObjectInstance]] = Field(description='list of instances of this type')
     instances: List[str] = Field(description='list of instances of this type')
     attributes: Optional[Dict[str, Union[ObjectAttributeTypeEnum, ObjectAttribute]]]  \
         = Field(description='attributes that can be set on the given object_type')
 
 # Connection
 
-class ObjectID(BaseModel):
-    object_type: str
-    object_name: str
+# class ObjectID(BaseModel):
+#     object_type: str
+#     object_name: str
+
+# class Connection(BaseModel):
+#     from_object: ObjectID
+#     to_object: ObjectID
+#     relation_type: RelationTypeEnum = Field(RelationTypeEnum.default, desription="relation type")
+#     relation_direction: RelationDirectionEnum = RelationDirectionEnum.both
 
 class Connection(BaseModel):
-    from_object: ObjectID
-    to_object: ObjectID
-    relation_type: RelationTypeEnum = Field(RelationTypeEnum.default, desription="relation type")
+    from_: str = Field(alias='from')
+    from_type: str
+    to: str
+    to_type: str
+    relation_type: RelationTypeEnum = Field(RelationTypeEnum.default, description="relation type")
     relation_direction: RelationDirectionEnum = RelationDirectionEnum.both
+    class Config:
+        allow_population_by_field_name = True
 
 # Model
 
-class Model(BaseModel):
-    object_types: List[str] = Field(description='list of implemented model object types and associated information')
+class ModelOld(BaseModel):
+    object_types: List = Field(description='List of all object types and their corresponding object instances.')
+
+ObjectModel = {
+    o: create_model(
+        f'ObjectModel{o}',
+        **{a: (AttributeValue, None) for a in _shop_session.shop_api.GetObjectTypeAttributeNames(o)}
+    ) for o in _SHOP_OBJECT_TYPE_NAMES
+}
+
+class TimeResolution(BaseModel):
+    start_time: datetime = Field(description="optimization start time")
+    end_time: datetime = Field(description="optimization end time")
+    time_unit: str = Field('hour', description="optimization time unit")
+    time_resolution: Optional[TimeSeries] = None
+
+ObjectTypeModel = create_model(
+    'ObjectTypeModel',
+    **{o: (Dict[str, ObjectModel[o]], None) for o in _SHOP_OBJECT_TYPE_NAMES}
+)
+
+class Command(BaseModel):
+    command: str
+    options: List[str]
+    values: List[str]
+
+class ShopModel(BaseModel):
+    time: Optional[TimeResolution]
+    model: Optional[ObjectTypeModel]
+    connections: Optional[List[Connection]]
+    commands: Optional[List[Command]]
+
 
 # Logging
 
 class LoggingEndpoint(BaseModel):
     endpoint: str
     
-def serialize_model_object_attribute(attribute: Any) -> AttributeValue:
+def serialize_model_object_attribute(shop_session: ShopSession, object_type: str, object_name: str, attribute_name: str, compressTxy: bool) -> AttributeValue:
 
-    attribute_type = new_attribute_type_name_from_old(attribute.info()['datatype'])
-    attribute_name = attribute._attr_name
-    info = attribute.info()
+    # attribute_type = new_attribute_type_name_from_old(attribute.info()['datatype'])
+    attribute_type = new_attribute_type_name_from_old(attribute_map[object_type][attribute_name]['datatype'])
+    # attribute_name = attribute._attr_name
+    info = attribute_map[object_type][attribute_name]
 
     attribute_y_unit = info['yUnit'] if 'yUnit' in info else 'unknown'
     attribute_x_unit = info['xUnit'] if 'xUnit' in info else 'unknown'
 
-    value = attribute.get()
+    value = shop_session.model[object_type][object_name][attribute_name].get()
 
     if value is None:
         return None
@@ -322,10 +385,14 @@ def serialize_model_object_attribute(attribute: Any) -> AttributeValue:
     if attribute_type == ObjectAttributeTypeEnum.integer_array:
         return np.array(value, dtype=int).tolist()
 
+    if attribute_type == ObjectAttributeTypeEnum.string_array:
+        return np.array(value, dtype=str).tolist()
+
     if attribute_type == ObjectAttributeTypeEnum.TimeSeries:
 
         if isinstance(value, pd.Series) or isinstance(value, pd.DataFrame):
-            
+            if compressTxy:
+                value = remove_consecutive_duplicates(value)
             if isinstance(value, pd.Series):
                 # values = {t: [v] for t, v in zip(value.index.values, value.values)}
                 timestamps = value.index.values.tolist()
@@ -372,15 +439,15 @@ def serialize_model_object_attribute(attribute: Any) -> AttributeValue:
     raise HTTPException(500, f"{attribute_type}: cannot parse <{type(value)}>")
 
 
-def serialize_model_object_instance(o: Any) -> ObjectInstance:
+def serialize_model_object_instance(shop_session: ShopSession, object_type: str, object_name: str) -> ObjectInstance:
 
-    attribute_names = list(o._attr_names)
+    # attribute_names = list(o._attr_names)
 
     return ObjectInstance(
         # object_type = o.get_type(),
         # object_name = o.get_name(),
         attributes = {
-            name: serialize_model_object_attribute((getattr(o, name))) for name in attribute_names
+            attribute_name: serialize_model_object_attribute(shop_session, object_type, object_name, attribute_name, False) for attribute_name in attribute_map[object_type]
         }
     )
 
@@ -388,3 +455,8 @@ class CommandArguments(BaseModel):
     options: List[str] = []
     values: List[str] = []
 
+attribute_map = dict()
+for ot in _SHOP_OBJECT_TYPE_NAMES:
+    attribute_map[ot] = dict()
+    for at in _shop_session.shop_api.GetObjectTypeAttributeNames(ot):
+        attribute_map[ot][at] = get_attribute_info(_shop_session.shop_api, ot, at)

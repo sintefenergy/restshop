@@ -1,21 +1,23 @@
 import json
 
 from datetime import datetime
-from typing import Optional, List
+from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Body, Query, Response, Header
-
-from pydantic import BaseModel, Field
+from matplotlib.pyplot import connect
 
 # from fastapi.openapi.models import SchemaBase
 from starlette.responses import RedirectResponse
 
 import core
 from core.sessions import SessionManager
-from core.schemas import ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
-        Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, Model, ObjectType, ObjectAttribute, \
-        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, ObjectID, \
-        Series_from_pd, new_attribute_type_name_from_old, serialize_model_object_instance
+from core.schemas import ObjectTypeModel, ShopCommandEnum, ObjectTypeEnum, OrderedDict, RelationDirectionEnum, RelationTypeEnum, ApiCommandEnum, \
+        Session, CommandStatus, ApiCommands, ApiCommandArgs, ApiCommandDescription, Series, ObjectType, ObjectAttribute, \
+        ObjectInstance, TimeSeries, Curve, Connection, CommandArguments, LoggingEndpoint, TimeResolution, ModelOld, \
+        ShopModel, Series_from_pd, TimeSeries_from_pd, new_attribute_type_name_from_old, serialize_model_object_attribute, serialize_model_object_instance, \
+        attribute_map
+
+from core.interface import set_datatype, get_model_connections
 
 from pyshop.shopcore.shop_rest import NumpyArrayEncoder
 
@@ -46,6 +48,10 @@ app = FastAPI(
         {
             'name': 'Time Resolution',
             'description': 'Specify the time resolution for the optimization problem',
+        },
+        {
+            'name': 'Object and attribute types',
+            'description': 'Get generic information about available object and attribute types',
         },
         {
             'name': 'Model',
@@ -136,13 +142,6 @@ async def delete_session(session_id: int = Query(1)):
 
 # --------- time_resolution
 
-class TimeResolution(BaseModel):
-    start_time: datetime = Field(description="optimization start time")
-    end_time: datetime = Field(description="optimization end time")
-    time_unit: str = Field('hour', description="optimization time unit")
-    time_resolution: Optional[Series] = None
-
-
 @app.put("/time_resolution", tags=["Time Resolution"])
 async def set_time_resolution(
     time_resolution: TimeResolution = Body(
@@ -201,14 +200,325 @@ async def get_time_resolution(session_id = Depends(get_session_id)):
         time_resolution=Series_from_pd(tr['timeresolution'])
     )
 
+# ------ object types and attributes
+@app.get("/object_types", response_model=List[str], response_model_exclude_unset=True, tags=['Object and attribute types'])
+async def get_model_object_types(session_id = Depends(get_session_id)):
+    return list(shop_session(test_user, session_id).model._all_types)
+
 # ------ model
 
-@app.get("/model", response_model=Model, response_model_exclude_unset=True, tags=['Model'])
-async def get_model_object_types(session_id = Depends(get_session_id)):
-    types = list(shop_session(test_user, session_id).model._all_types)
-    return Model(object_types = types)
+@app.get("/model", response_model=ShopModel, response_model_exclude_unset=True, response_model_exclude_none=True, tags=['Model'])
+async def get_model(
+        session_id = Depends(get_session_id),
+        objectType: str = None,
+        objectName: str = None,
+        attributeName: str = None,
+        datatype: str = None,
+        isInput: bool = False,
+        isOutput: bool = True,
+        includeTime: bool = False,
+        includeConnections: bool = False,
+        compressTxy: bool = False
+    ):
+    session = shop_session(test_user, session_id)
+
+    # Get time resolution
+    if includeTime:
+        time_res = session.get_time_resolution()
+        time = TimeResolution(
+            start_time=time_res['starttime'],
+            end_time=time_res['endtime'],
+            time_unit=time_res['timeunit'],
+            time_resolution=TimeSeries_from_pd(time_res['timeresolution'])
+        )
+    else:
+        time = None
+
+    # Get model objects
+    object_types = session.model._all_types if objectType is None else [objectType]
+    model_dict = dict()
+    for ot in object_types:
+        if objectName is None:
+            object_list = session.model[ot].get_object_names()
+            if len(object_list) == 0:
+                continue
+        else:
+            object_list = [objectName]
+        model_dict[ot] = dict()
+        for on in object_list:
+            attribute_list = session.shop_api.GetObjectTypeAttributeNames(ot) if attributeName is None else [attributeName]
+            model_dict[ot][on] = dict()
+            for attr in attribute_list:
+                if ((attribute_map[ot][attr]['isInput'] and isInput)
+                        or (attribute_map[ot][attr]['isOutput'] and isOutput)
+                        and ((datatype is None) or datatype == attribute_map[ot][attr]['datatype'])):
+                    model_dict[ot][on][attr] = serialize_model_object_attribute(session, ot, on, attr, compressTxy)
+    model = ObjectTypeModel(**model_dict)
+
+    # Get connections
+    if includeConnections:
+        connections = get_model_connections(session)
+    else:
+        connections = None
+
+    return ShopModel(
+        time=time,
+        model=model,
+        connections=connections,
+    )
+
+@app.put("/model", response_model=ShopModel, response_model_exclude_unset=True, tags=['Model'])
+async def create_or_modify_existing_model(
+    model: ShopModel = Body(
+        None,
+        example={
+            'time': {
+                'start_time':'2020-01-01T00:00:00Z',
+                'end_time': '2020-01-02T00:00:00Z',
+                'time_unit': 'minute',
+                'time_resolution': {
+                    'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T01:00:00Z'],
+                    'values': [[15, 60]]
+                }
+
+            },
+            'model': {
+                'reservoir': {
+                    'Reservoir1': {
+                        'max_vol': 12,
+                        'lrl': 90,
+                        'hrl': 100,
+                        'vol_head': { # Curve
+                            'y_values': [90, 100, 101],
+                            'x_values': [0, 12, 14]
+                        },
+                        'flow_descr': { # Curve 
+                            'y_values': [0, 1000],
+                            'x_values': [100, 101]
+                        },
+                        'start_head': 92,
+                        'energy_value_input': 39.7,
+                        'inflow': {
+                            'timestamps': ['2020-01-01T00:00:00Z', '2020-01-01T01:00:00Z' ],
+                            'values': [[101.0, 50.0]]
+                        }
+                    },
+                    'Reservoir2': {
+                        'max_vol': 5,
+                        'lrl': 40,
+                        'hrl': 50,
+                        'vol_head': { # Curve
+                            'y_values': [40, 50, 51],
+                            'x_values': [0, 5, 6]
+                        },
+                        'flow_descr': { # Curve 
+                            'y_values': [0, 1000],
+                            'x_values': [50, 51]
+                        },
+                        'start_head': 43,
+                        'energy_value_input': 38.6
+                    },
+                },
+                'plant': {
+                    'Plant1': {
+                        'outlet_line': 40,
+                        'main_loss': [0.0002],
+                        'penstock_loss': [0.0001]
+                    },
+                    'Plant2': {
+                        'outlet_line': 0,
+                        'main_loss': [0.0002],
+                        'penstock_loss': [0.0001]
+                    }
+                },
+                'generator': {
+                    'Plant1_G1': {
+                        'penstock': 1,
+                        'p_min': 25,
+                        'p_max': 100,
+                        'p_nom': 100,
+                        'startcost': 500,
+                        'gen_eff_curve': { #Curve 
+                            'y_values': [95, 98],
+                            'x_values': [0, 100]
+                        },
+                        'turb_eff_curves': { #Dict[float, Curve]
+                            '90': { # Curve
+                                'y_values': [80, 95, 90],
+                                'x_values': [25, 90, 100]
+                            },
+                            '100': { # Curve
+                                'y_values': [82, 98, 92],
+                                'x_values': [25, 90, 100]
+                            }
+                        }
+                    },
+                    'Plant2_G1': {
+                        'penstock': 1,
+                        'p_min': 25,
+                        'p_max': 100,
+                        'p_nom': 100,
+                        'startcost': 500,
+                        'gen_eff_curve': { #Curve 
+                            'y_values': [95, 98],
+                            'x_values': [0, 100]
+                        },
+                        'turb_eff_curves': { #Dict[float, Curve]
+                            '90': { # Curve
+                                'y_values': [80, 95, 90],
+                                'x_values': [25, 90, 100]
+                            },
+                            '100': { # Curve
+                                'y_values': [82, 98, 92],
+                                'x_values': [25, 90, 100]
+                            }
+                        }
+                    }
+                },
+                'market': {
+                    'Day_ahead': {
+                        'sale_price': 39.99,
+                        'buy_price': 40.01,
+                        'max_buy': 9999,
+                        'max_sale': 9999
+                    }
+                }
+            },
+            'connections': [
+                {
+                    'from_type': 'plant',
+                    'from': 'Plant1',
+                    'to_type': 'generator',
+                    'to': 'Plant1_G1'
+                },
+                {
+                    'from_type': 'plant',
+                    'from': 'Plant2',
+                    'to_type': 'generator',
+                    'to': 'Plant2_G1'
+                },
+                { #Reservoir1 -> Plant1
+                    'from_type': 'reservoir',
+                    'from': 'Reservoir1',
+                    'to_type': 'plant',
+                    'to': 'Plant1'
+                },
+                { # Plant1 -> Reservoir2
+                    'from_type': 'plant',
+                    'from': 'Plant1',
+                    'to_type': 'reservoir',
+                    'to': 'Reservoir2'
+                },
+                { # Reservoir2 -> Plant2
+                    'from_type': 'reservoir',
+                    'from': 'Reservoir2',
+                    'to_type': 'plant',
+                    'to': 'Plant2'
+                }
+            ],
+            'commands': [
+                {
+                    'command': 'start sim',
+                    'options': [],
+                    'values': ['3']
+                },
+                {
+                    'command': 'set code',
+                    'options': ['incremental'],
+                    'values': []
+                },
+                {
+                    'command': 'start sim',
+                    'options': [],
+                    'values': ['3']
+                },
+            ]
+        }
+    ),
+    session_id = Depends(get_session_id)
+):
+    session = shop_session(test_user, session_id)
+    if hasattr(model, 'time'):
+        if model.time is not None:
+            time_resolution: TimeResolution = model.time
+            start = pd.Timestamp(time_resolution.start_time)
+            end = pd.Timestamp(time_resolution.end_time)
+
+            if (end <= start):
+                raise HTTPException(400, 'end_time must be strictly greater than start_time')
+
+            if (time_resolution.time_resolution):
+                tr: Series = time_resolution.time_resolution
+                session.set_time_resolution(
+                    starttime=start,
+                    endtime=end,
+                    timeunit=time_resolution.time_unit,
+                    timeresolution=pd.Series(index=tr.timestamps, data=tr.values[0])
+                )
+            else:
+                session.set_time_resolution(
+                    starttime=start,
+                    endtime=end,
+                    timeunit=time_resolution.time_unit
+                )
+
+            # store the fact that time_resolution has been set
+            us = SessionManager.get_user_session(test_user)
+            us.shop_sessions_time_resolution_is_set[session_id] = True
+    if hasattr(model, 'model'):
+        if model.model is not None:
+            for (object_type, objects) in model.model:
+                try:
+                    object_generator = session.model[object_type]
+                except Exception as e:
+                    raise HTTPException(500, f'model does not implement object_type {{{object_type}}}')
+                if objects is not None:
+                    object_names = object_generator.get_object_names()
+                    for (object_name, object_attributes) in objects.items():
+                        if object_name not in object_names:
+                            try:
+                                object_generator.add_object(object_name)
+                            except Exception as e:
+                                raise HTTPException(500, f'object_name {{{object_name}}} is in conflict with existing instance')
+                        model_object = session.model[object_type][object_name]
+                        if object_attributes:
+                            for (attribute_name, attribute_value) in object_attributes:
+                                if attribute_value is not None:
+                                    try:
+                                        datatype = attribute_map[object_type][attribute_name]['datatype']  #model_object[attribute_name].info()['datatype']
+                                    except Exception as e:
+                                        http_raise_internal(f'unknown object_attribute {attribute_name} for {object_type} {object_name}', e)
+                                    set_datatype(datatype)(session, object_type, object_name, attribute_name, attribute_value)
+    if hasattr(model, 'connections'):
+        if model.connections is not None:
+            for connection in model.connections:
+                relation_type = connection.relation_type if connection.relation_type != 'default' else ''
+
+                fo = SessionManager.get_model_object_instance(test_user, session_id, connection.from_type, connection.from_)
+                to = SessionManager.get_model_object_instance(test_user, session_id, connection.to_type, connection.to)
+
+                fo.connect_to(to, connection_type=relation_type)
+    if hasattr(model, 'commands'):
+        if model.commands is not None:
+            for command in model.commands:
+                # session._command = command.command
+                try:
+                    # status: bool = session._execute_command(command.options, command.values) # does this return anything
+                    status: bool = session.shop_api.ExecuteCommand(command.command, command.options, command.values)
+                except Exception as e:
+                    http_raise_internal('failed to execute simulation command', e)
+                return CommandStatus(
+                    message=('ok' if status else 'something went wrong ...'),
+                    status=status
+                )
 
 # ------ object_type
+
+@app.get("/model/information", tags=['Model'])
+async def get_model_object_type_information_all(
+    session_id = Depends(get_session_id)
+):
+    return attribute_map
 
 @app.get("/model/{object_type}/information", response_model=ObjectType, response_model_exclude_unset=True, tags=['Model'])
 async def get_model_object_type_information(
@@ -323,76 +633,17 @@ async def create_or_modify_existing_model_object_instance(
         except Exception as e:
             raise HTTPException(500, f'object_name {{{object_name}}} is in conflict with existing instance')
 
-    model_object = session.model[object_type][object_name]
-
     if object_instance and object_instance.attributes:
         for (k,v) in object_instance.attributes.items():
 
             try:
-                datatype = model_object[k].info()['datatype']
+                datatype = attribute_map[object_type][k]['datatype'] #model_object[k].info()['datatype']
             except Exception as e:
                 http_raise_internal(f'unknown object_attribute {k} for object_type {object_type}', e)
+            set_datatype(datatype)(session, object_type, object_name, k, v)
 
-            if datatype == 'txy':
-
-                # convert scalar values to TimeSeries
-                if type(v) == float or type(v) == int:
-                    start_time = shop_session(test_user, session_id).get_time_resolution()['starttime']
-                    v = TimeSeries(
-                        timestamps=[start_time],
-                        values=[[v]]
-                    )
-                try:
-                    time_series: TimeSeries = v
-                    # index, values = zip(*time_series.values.items())
-                    index, values = time_series.timestamps, np.transpose(time_series.values)
-                    df = pd.DataFrame(index=index, data=values)
-                    model_object[k].set(df)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-            elif datatype == 'xy':
-                try:
-                    curve: Curve = v
-                    ser = pd.Series(index=curve.x_values, data=curve.y_values)
-                    model_object[k].set(ser)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-            elif datatype in ['xy_array', 'xyn']:
-                try:
-                    curves: OrderedDict[float, Curve] = v
-                    ser_list = []
-                    for ref, curve in curves.items():
-                        ser_list += [pd.Series(index=curve.x_values, data=curve.y_values, name=ref)]
-                    model_object[k].set(ser_list)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-            elif datatype == 'xyt':
-                try:
-                    curves: OrderedDict[datetime, Curve] = v
-                    ser_list = []
-                    for ref, curve in curves.items():
-                        ser_list += [pd.Series(index=curve.x_values, data=curve.y_values, name=ref)]
-                    model_object[k].set(ser_list)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-                
-            elif datatype == 'double':
-                model_object[k].set(float(v))
-
-            elif datatype == 'int':
-                model_object[k].set(int(v))
-
-            else:
-                try:
-                    model_object[k].set(v)
-                except Exception as e:
-                    http_raise_internal(f'trouble setting {{{datatype}}} ', e)
-
-    o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
-    return serialize_model_object_instance(o)
+    SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
+    return serialize_model_object_instance(session, object_type, object_name)
 
 @app.get("/model/{object_type}", response_model=ObjectInstance, dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Model'])
 async def get_model_object_instance(
@@ -405,8 +656,9 @@ async def get_model_object_instance(
     if attribute_filter != '*':
         raise HTTPException(500, 'setting attribute_filter != * is not support yet')
 
-    o = SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name)
-    return serialize_model_object_instance(o)
+    SessionManager.get_model_object_instance(test_user, session_id, object_type, object_name) # Check that object exists
+    session = shop_session(test_user, session_id)
+    return serialize_model_object_instance(session, object_type, object_name)
 
 
 # ------ connection
@@ -414,40 +666,16 @@ async def get_model_object_instance(
 
 @app.get("/connections", response_model=List[Connection], dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Connections'])
 async def get_connections(session_id = Depends(get_session_id)):
-
-    connections = []
-
-    for object_type in shop_session(test_user, session_id).model._all_types:
-        generator = SessionManager.get_model_object_generator(test_user, session_id, object_type)
-        for object_name in generator.get_object_names():
-            from_object = generator[object_name]
-            for relation_direction in RelationDirectionEnum:
-                for relation_type in RelationTypeEnum:
-                    for r in from_object.get_relations(
-                        direction=relation_direction,
-                        relation_type=relation_type
-                    ):
-                        to_object = serialize_model_object_instance(r)
-                        connections += [Connection(
-                            from_object=ObjectID(object_type=object_type, object_name=object_name),
-                            to_object=ObjectID(object_type=r.get_type(), object_name=r.get_name()),
-                            relation_type=relation_type,
-                            relation_direction=relation_direction,
-                        )]
-
-    return connections
+    return get_model_connections(shop_session(test_user, session_id))
 
 @app.put("/connections", dependencies=[Depends(check_that_time_resolution_is_set)], tags=['Connections'])
 async def add_connections(connections: List[Connection], session_id = Depends(get_session_id)):
 
     for connection in connections:
-
-        fo_type, fo_name = connection.from_object.object_type, connection.from_object.object_name
-        to_type, to_name = connection.to_object.object_type, connection.to_object.object_name
         relation_type = connection.relation_type if connection.relation_type != 'default' else ''
 
-        fo = SessionManager.get_model_object_instance(test_user, session_id, fo_type, fo_name)
-        to = SessionManager.get_model_object_instance(test_user, session_id, to_type, to_name)
+        fo = SessionManager.get_model_object_instance(test_user, session_id, connection.from_type, connection.from_)
+        to = SessionManager.get_model_object_instance(test_user, session_id, connection.to_type, connection.to)
 
         fo.connect_to(to, connection_type=relation_type)
 

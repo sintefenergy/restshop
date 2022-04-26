@@ -130,14 +130,10 @@ class TestBasicRest:
             '/connections',
             json=[
                 {
-                    'from_object': { #ObjectID
-                        'object_type': 'plant',
-                        'object_name': 'Plant1'
-                    },
-                    'to_object': { #ObjectID
-                        'object_type': 'generator',
-                        'object_name': 'Plant1_G1'
-                    }
+                    'from_type': 'plant',
+                    'from': 'Plant1',
+                    'to_type': 'generator',
+                    'to': 'Plant1_G1'
                 }
             ]
         )
@@ -242,14 +238,10 @@ class TestBasicRest:
             '/connections',
             json=[
                 {
-                    'from_object': { #ObjectID
-                        'object_type': 'plant',
-                        'object_name': 'Plant2'
-                    },
-                    'to_object': { #ObjectID
-                        'object_type': 'generator',
-                        'object_name': 'Plant2_G1'
-                    }
+                    'from_type': 'plant',
+                    'from': 'Plant2',
+                    'to_type': 'generator',
+                    'to': 'Plant2_G1'
                 }
             ]
         )
@@ -275,34 +267,22 @@ class TestBasicRest:
             '/connections',
             json=[
                 { #Reservoir1 -> Plant1
-                    'from_object': { #ObjectID
-                        'object_type': 'reservoir',
-                        'object_name': 'Reservoir1'
-                    },
-                    'to_object': { #ObjectID
-                        'object_type': 'plant',
-                        'object_name': 'Plant1'
-                    }
+                    'from_type': 'reservoir',
+                    'from': 'Reservoir1',
+                    'to_type': 'plant',
+                    'to': 'Plant1'
                 },
                 { # Plant1 -> Reservoir2
-                    'from_object': { #ObjectID
-                        'object_type': 'plant',
-                        'object_name': 'Plant1'
-                    },
-                    'to_object': { #ObjectID
-                        'object_type': 'reservoir',
-                        'object_name': 'Reservoir2'
-                    }
+                    'from_type': 'plant',
+                    'from': 'Plant1',
+                    'to_type': 'reservoir',
+                    'to': 'Reservoir2'
                 },
                 { # Reservoir2 -> Plant2
-                    'from_object': { #ObjectID
-                        'object_type': 'reservoir',
-                        'object_name': 'Reservoir2'
-                    },
-                    'to_object': { #ObjectID
-                        'object_type': 'plant',
-                        'object_name': 'Plant2'
-                    }
+                    'from_type': 'reservoir',
+                    'from': 'Reservoir2',
+                    'to_type': 'plant',
+                    'to': 'Plant2'
                 }
             ]
         )

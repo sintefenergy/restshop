@@ -136,9 +136,12 @@ class TestMain:
             headers={'session-id': str(session_id_manager.session_id)}
         )
         assert response.status_code == 200
-        assert 'object_types' in response.json()
-        assert 'reservoir' in response.json()['object_types']
-        assert 'plant' in response.json()['object_types']
+        response_json = response.json()
+        assert 'model' in response_json
+        assert 'scenario' in response_json['model']
+        assert 'objective' in response_json['model']
+        assert 'average_objective' in response_json['model']['objective']
+        assert 'grand_total' in response_json['model']['objective']['average_objective']
 
     # @pytest.mark.order(11)
     def test_get_model_object_type_info(self, client, session_id_manager):
@@ -324,8 +327,10 @@ class TestMain:
             headers={"session-id": str(session_id_manager.session_id)},
             json=[
                 {
-                    'from_object': {'object_type': 'reservoir', 'object_name': 'r1'},
-                    'to_object': {'object_type': 'plant', 'object_name': 'p1'}
+                    'from_type': 'reservoir',
+                    'from': 'r1',
+                    'to_type': 'plant',
+                    'to': 'p1'
                 }
             ]
         )
