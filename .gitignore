@@ -13,3 +13,4 @@ log.txt
 pyshop_log.py
 binaries/*.so
 binaries/SHOP_license.dat
+.venv
