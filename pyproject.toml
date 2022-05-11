@@ -7,7 +7,7 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-sintef-pyshop = "^1.1.0"
+sintef-pyshop = "^1.2.0"
 fastapi = "^0.75.0"
 pandas = "^1.4.1"
 numpy = "^1.22.3"
