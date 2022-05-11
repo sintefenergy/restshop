@@ -1,19 +1,18 @@
 [tool.poetry]
 name = "restshop"
-version = "1.0.2"
+version = "1.0.3"
 description = "SINTEF SHOP Rest API"
 authors = ["SINTEF Energy Research"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-sintef-pyshop = "^1.1.0"
+sintef-pyshop = "^1.2.0"
 fastapi = "^0.75.0"
 pandas = "^1.4.1"
 numpy = "^1.22.3"
 hypercorn = "^0.13.2"
 pydantic = "^1.9.0"
-starlette = "^0.17.1"
 requests = "^2.27.1"
 
 [tool.poetry.dev-dependencies]
