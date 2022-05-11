@@ -1,13 +1,11 @@
 import json
 
 from datetime import datetime
-from typing import List
+from typing import List, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Body, Query, Response, Header
-from matplotlib.pyplot import connect
 
-# from fastapi.openapi.models import SchemaBase
-from starlette.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 
 import core
 from core.sessions import SessionManager
@@ -29,13 +27,23 @@ import requests
 def shop_session(user_name: str, session_id: str):
     return SessionManager.get_shop_session(user_name, session_id)
 
-api_description = """ """
+class CustomJSONResonse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=True,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
+api_description = """ """
 
 app = FastAPI(
     title="REST SHOP",
     description=api_description,
     version=core.__version__,
+    default_response_class=CustomJSONResonse,
     openapi_tags=[
         {
             'name': 'Authentication',
