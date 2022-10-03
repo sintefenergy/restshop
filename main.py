@@ -750,7 +750,8 @@ async def register_logging_endpoint(endpoint: LoggingEndpoint = Body(LoggingEndp
                 'id':session_name,
                 'level': 'INFO',
                 'message':'Connection established'
-            })
+            }),
+            verify=False
         )
     except Exception as e:
         http_raise_internal('failed to ping log endpoint', e)
