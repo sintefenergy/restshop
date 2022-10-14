@@ -509,16 +509,18 @@ async def create_or_modify_existing_model(
     if hasattr(model, 'commands'):
         if model.commands is not None:
             for command in model.commands:
-                # session._command = command.command
+                status = True
                 try:
                     # status: bool = session._execute_command(command.options, command.values) # does this return anything
-                    status: bool = session.shop_api.ExecuteCommand(command.command, command.options, command.values)
+                    last_status = session.shop_api.ExecuteCommand(command.command, command.options, command.values)
+                    if status:
+                        status = last_status
                 except Exception as e:
                     http_raise_internal('failed to execute simulation command', e)
-                return CommandStatus(
-                    message=('ok' if status else 'something went wrong ...'),
-                    status=status
-                )
+            return CommandStatus(
+                message=('ok' if status else 'something went wrong ...'),
+                status=status
+            )
 
 # ------ object_type
 
